@@ -9,85 +9,119 @@ class Compressor(CompressorABC):
         self.block_size = block_size
 
     def compress(self, path_in, path_out):
-        last_directory = os.path.basename(path_in)
         os.makedirs(path_out, exist_ok=True)
-        archive_file_path = os.path.join(path_out, f'{last_directory}.huff')
+        name_dir = os.path.basename(path_in)
+        archive_file_path = os.path.join(path_out, f'{name_dir}.huff')
 
         with open(archive_file_path, 'wb') as outfile:
             outfile.write(MAGIC_HEADER)
             outfile.write(SPECIAL_BYTES)
 
-            # Обрабатываем каждый файл в директории path_in
-            for path_file in self.__iter_dir(path_in):
-                # Создаем дерево Хаффмана для текущего файла
-                tree = HuffmanTree()
-                relative_path = os.path.relpath(path_file, path_in)
+            # Обрабатываем каждый файл и директорию внутри основной директории
+            for root, dirs, files in os.walk(path_in):
+                # Записываем путь до текущей директории в архив
+                relative_dir = os.path.relpath(root, path_in)
 
-                self.__create_tree(path_file, relative_path ,tree)
+                # Если директория пустая, просто записываем маркер для директории и переходим к следующей
+                if not dirs and not files:
+                    self.__compress_empty_dir(outfile, relative_dir)
+                    continue
 
-                codes = tree.get_codes()
+                # Если директория не пустая, обрабатываем каждый файл внутри нее
+                for filename in files:
+                    if filename == '.DS_Store':
+                        continue
 
-                serialized_tree = tree.serialize_to_string()
-                outfile.write(serialized_tree)
-                outfile.write(MAGIC_COOKIE_TREE)
+                    file_path = os.path.join(root, filename)
+                    self.__compress_file(file_path, outfile, path_in)
 
-                # Если это пустая директория, записываем сразу маркер для данных
-                if os.path.isdir(path_file):
-                    outfile.write(MAGIC_COOKIE_DATA)
-                else:
-                    compress_path = self.__compress(codes, relative_path)
-                    outfile.write(compress_path)
-                    outfile.write(MAGIC_COOKIE_DIR)
+    def __compress_file(self, file_path, outfile, path_in):
+        tree = HuffmanTree()
 
-                # Обрабатываем каждый блок данных в текущем файле
-                for block in self.__iter_file(path_file):
-                    # Преобразуем блок из байтов в строку
-                    block_str = block.decode('latin1')
-                    compress_data = self.__compress(codes, block_str)
-                    outfile.write(compress_data)
+        # Добавляем путь к файлу в дерево
+        relative_path = os.path.relpath(file_path, path_in)
+        tree.add_block(relative_path)
 
-    def __compress(self, codes, block):
-        encoded_data = ''.join([codes[char] for char in block])
-        # Преобразуем битовые строки в байты
-        compressed_data = self.__bits_to_bytes(encoded_data)
-        return compressed_data
+        # Добавляем содержимое файла в дерево
+        with open(file_path, 'rb') as file:
+            while True:
+                block = file.read(self.block_size)
+                if not block:
+                    break
+                tree.add_block(block)
+
+        tree.build_tree()
+        codes = tree.get_codes()
+
+        serialized_tree = tree.serialize_to_string()
+        outfile.write(serialized_tree)
+        outfile.write(MAGIC_COOKIE_TREE)
+
+        print(relative_path)
+        bits_relative_path = ''.join([codes[byte] for byte in relative_path])
+
+        self.__write_directory(outfile, bits_relative_path)
+
+        # Записываем содержимое файла в архив
+        with open(file_path, 'rb') as file:
+            buffer = ''
+            while True:
+                block = file.read(self.block_size)
+                if not block:
+                    break
+                buffer += ''.join([codes[byte] for byte in block])
+                buffer, compressed_block = self.__bits_to_bytes(buffer)
+                outfile.write(compressed_block)
+            if buffer:
+                byte, byte_count = self.__adder_zero(buffer)
+                outfile.write(byte)
+                outfile.write(byte_count)
+        outfile.write(MAGIC_COOKIE_DATA)
 
     @staticmethod
     def __bits_to_bytes(bits):
-        # Добавляем нулевой бит, если количество битов не кратно 8
-        bits += '0' * (8 - len(bits) % 8)
-        # Разбиваем битовую строку на байты и преобразуем в соответствующие байты
-        bytes_list = [int(bits[i:i+8], 2) for i in range(0, len(bits), 8)]
-        # Преобразуем список байтов в байтовую строку
-        return bytes(bytes_list)
+        bytes_list = []
+
+        while len(bits) >= 8:
+            byte = bits[:8]
+            bits = bits[8:]
+            bytes_list.append(int(byte, 2))
+
+        return bits, bytes(bytes_list)
 
     @staticmethod
-    def __iter_dir(path):
-        for root, dirs, files in os.walk(path):
-            for directory in dirs:
-                dir_path = os.path.join(root, directory)
-                yield dir_path
-            for filename in files:
-                file_path = os.path.join(root, filename)
-                yield file_path
+    def __adder_zero(bits):
+        count = (8 - (len(bits) % 8)) % 8  # Количество нулей, которые нужно добавить
+        bits += '0' * count  # Добавляем нули к последовательности битов
+        byte = int(bits, 2).to_bytes(1, byteorder='big')
+        count_bits = count.to_bytes(1, byteorder='big')
+        return byte, count_bits
 
-    def __iter_file(self, path):
-        if os.path.isfile(path):  # Проверяем, является ли путь файлом
-            with open(path, 'rb') as file:
-                while True:
-                    block = file.read(self.block_size)
-                    if not block:
-                        break
-                    yield block
-        else:
-            None
+    def __write_directory(self, outfile, relative_dir):
 
-    def __create_tree(self, path, reletive_path, tree):
-        tree.add_block(str(reletive_path))
+        bits, bytes = self.__bits_to_bytes(relative_dir)
+        outfile.write(bytes)
 
-        for block in self.__iter_file(path):
-            # Преобразуем блок из байтов в строку
-            block_str = block.decode('latin1')
-            tree.add_block(block_str)
+        count = int(0).to_bytes(1, byteorder='big')
+        if bits:
+            byte_with_add, count = self.__adder_zero(bits)
+            outfile.write(byte_with_add)
 
+        outfile.write(count)
+
+        outfile.write(MAGIC_COOKIE_DIR)
+
+    def __compress_empty_dir(self, outfile, relative_dir):
+        tree = HuffmanTree()
+        tree.add_block(relative_dir)
         tree.build_tree()
+
+        serialized_tree = tree.serialize_to_string()
+        outfile.write(serialized_tree)
+        outfile.write(MAGIC_COOKIE_TREE)
+
+        codes = tree.get_codes()
+        encoded_path = ''.join([codes[byte] for byte in relative_dir])
+
+        self.__write_directory(outfile, encoded_path)
+        outfile.write(MAGIC_COOKIE_DATA)

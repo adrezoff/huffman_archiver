@@ -13,6 +13,9 @@ class HuffmanNode:
     def __lt__(self, other):
         return self.freq < other.freq
 
+    def is_leaf(self):
+        return self.left is None and self.right is None
+
 
 class HuffmanTree:
     def __init__(self):
@@ -36,6 +39,33 @@ class HuffmanTree:
 
         return self._build_codes(self.root)
 
+    def decode(self, bit_sequence, count=-1):
+        if self.root is None:
+            return ""
+
+        if count >= 0:
+            bit_sequence = bit_sequence[:-(8 + count)]
+
+        decoded_string = ""
+        current_node = self.root
+
+        remaining_bits = ''
+
+        for bit in bit_sequence:
+            remaining_bits += bit
+
+            if bit == '0':
+                current_node = current_node.left
+            else:
+                current_node = current_node.right
+
+            if current_node.is_leaf():
+                decoded_string += current_node.char
+                remaining_bits = ''
+                current_node = self.root
+
+        return decoded_string, remaining_bits
+
     def add_block(self, block):
         if not block:
             return
@@ -43,8 +73,8 @@ class HuffmanTree:
 
     def build_tree(self):
         if len(self.frequency) == 1:
-            char = next(iter(self.frequency.keys()))
-            self.root = HuffmanNode(char, 1)
+            char, freq = next(iter(self.frequency.items()))
+            self.root = HuffmanNode(char, freq)
             return
         else:
             priority_queue = [HuffmanNode(char, freq) for char, freq in self.frequency.items()]
