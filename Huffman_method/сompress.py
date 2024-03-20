@@ -48,7 +48,7 @@ class Compressor(CompressorABC):
                 block = file.read(self.block_size)
                 if not block:
                     break
-                tree.add_block(block)
+                tree.add_block(block.decode('utf-8'))
 
         tree.build_tree()
         codes = tree.get_codes()
@@ -57,7 +57,6 @@ class Compressor(CompressorABC):
         outfile.write(serialized_tree)
         outfile.write(MAGIC_COOKIE_TREE)
 
-        print(relative_path)
         bits_relative_path = ''.join([codes[byte] for byte in relative_path])
 
         self.__write_directory(outfile, bits_relative_path)
@@ -66,7 +65,7 @@ class Compressor(CompressorABC):
         with open(file_path, 'rb') as file:
             buffer = ''
             while True:
-                block = file.read(self.block_size)
+                block = file.read(self.block_size).decode('utf-8')
                 if not block:
                     break
                 buffer += ''.join([codes[byte] for byte in block])

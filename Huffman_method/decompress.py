@@ -9,22 +9,38 @@ class Decompressor(DecompressorABC):
         self.block_size = block_size
 
     def decompress(self, archive_file, out_path):
+        name_dir = os.path.splitext(os.path.basename(archive_file))[0]
+        out_path = str(os.path.join(out_path, name_dir))
         os.makedirs(out_path, exist_ok=True)
+
         buffer = bytes()
         flag = 1
         current_tree = HuffmanTree()
+        path_out_file = ''
+
+        print('----------')
+
         with open(archive_file, 'rb') as file:
-            for block in self.__iter_file(file):
-                buffer += block
+            while True:
+                buffer += file.read(self.block_size)
+                if not buffer:
+                    break
+
                 current_tree = HuffmanTree()
                 if flag == 1:
                     flag, buffer = self.__check_magic_header(buffer)
                 if flag == 2:
                     flag, current_tree, buffer = self.__read_tree(buffer)
                 if flag == 3:
-                    flag, decoded_path, bits, buffer = self.__read_directory(buffer, current_tree)
+                    flag, current_path, bits, buffer = self.__read_directory(buffer, current_tree)
+                    path_out_file = os.path.join(out_path, current_path)
                 if flag == 4:
-                    pass
+                    flag, decoded_data, bits, buffer = self.__reed_data(bits, buffer, current_tree)
+                    if flag == 2 and not decoded_data:
+                        os.makedirs(path_out_file, exist_ok=True)
+                    else:
+                        with open(path_out_file, 'w') as out_file:
+                            out_file.write(decoded_data)
 
     @staticmethod
     def __check_magic_header(block):
@@ -60,19 +76,31 @@ class Decompressor(DecompressorABC):
             path_dir = block[:cookie_dir]
             bits = self.__bytes_to_bits(path_dir)
             count = bits[-8:]
-            decoded_path, _ = tree.decode(bits, int(count, 2))
+            decoded_path, other_bits = tree.decode(bits, int(count, 2))
             block = block[cookie_dir + len(MAGIC_COOKIE_DIR):]
-            return 4, decoded_path, bits, block
+            return 4, decoded_path, other_bits, block
         else:
             return 3, None, None, block
 
-    def __reed_data(self, block, tree):
+    def __reed_data(self, bits, block, tree):
         cookie_data = block.find(MAGIC_COOKIE_DATA)
-        if cookie_data >= 0:
-            pass
-        else:
-            pass
 
+        if cookie_data >= 0:
+            last_data = block[:cookie_data]
+            bits += self.__bytes_to_bits(last_data)
+            count = bits[-8:]
+
+            if count:
+                decoded_data, other_bits = tree.decode(bits, int(count, 2))
+            else:
+                decoded_data, other_bits = tree.decode(bits)
+
+            block = block[cookie_data + len(MAGIC_COOKIE_DATA):]
+            return 2, decoded_data, other_bits, block
+        else:
+            bits += self.__bytes_to_bits(block)
+            decoded_data, other_bits = tree.decode(bits)
+            return 4, decoded_data, other_bits, bytes()
 
     @staticmethod
     def __bytes_to_bits(data):
@@ -90,13 +118,5 @@ class Decompressor(DecompressorABC):
             if symbol is not None:
                 decoded_chars.append(symbol)
                 current_bits = ''
-        remaining_bits = current_bits  # Оставшиеся биты после раскодирования
-        decoded_path = ''.join(decoded_chars)  # Раскодированный путь
-        return decoded_path, remaining_bits
-
-    def __iter_file(self, file_obj):
-        while True:
-            block = file_obj.read(self.block_size)
-            if not block:
-                break
-            yield block
+        decoded_data = ''.join(decoded_chars)
+        return decoded_data, current_bits
