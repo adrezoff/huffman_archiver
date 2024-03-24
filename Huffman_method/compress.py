@@ -5,7 +5,17 @@ from Huffman_method.const_byte import *
 
 
 class Compressor(CompressorABC):
+    """
+    Класс для сжатия файлов методом Хаффмана.
+    """
     def __init__(self, codec=None, block_size=128):
+        """
+        Инициализация объекта сжатия.
+
+        Параметры:
+        - codec (str, optional): Кодировка для чтения файлов. По умолчанию None.
+        - block_size (int, optional): Размер блока для чтения файла. По умолчанию 128.
+        """
         self.block_size = block_size
         self.version = 1
         self.codec = codec
@@ -17,8 +27,17 @@ class Compressor(CompressorABC):
             self.open_mode = 'r'
 
     def compress(self, path_in, path_out):
+        """
+        Сжимает файлы по указанному пути и записывает сжатые данные в новый архив.
+
+        Параметры:
+        - path_in (str): Путь к файлу или директории для сжатия.
+        - path_out (str): Путь, по которому будет сохранен архив.
+
+        Возвращает:
+        - int: Разница в размере между исходными данными и сжатыми данными.
+        """
         size_path_in = 0
-        size_archive = 0
         os.makedirs(path_out, exist_ok=True)
         name_dir = os.path.basename(path_in)
         archive_file_path = os.path.join(path_out, f'{name_dir}.huff')
@@ -48,14 +67,23 @@ class Compressor(CompressorABC):
                         size_path_in += os.path.getsize(file_path)
 
                         self.__compress_file(outfile, file_path, path_in)
+        size_archive = os.path.getsize(archive_file_path)
         return size_path_in - size_archive
 
     def __compress_file(self, outfile, file_path, main_dir):
+        """
+        Сжимает файл и записывает его в архив.
+
+        Параметры:
+        - outfile (file object): Объект файла для записи сжатых данных.
+        - file_path (str): Путь к файлу для сжатия.
+        - main_dir (str): Главная директория.
+
+        """
         if file_path != main_dir:
             relative_path = os.path.relpath(file_path, main_dir)
             if self.codec is None:
                 relative_path = relative_path.encode('utf-8')
-
         else:
             relative_path = ''
 
@@ -69,7 +97,6 @@ class Compressor(CompressorABC):
 
         with open(file_path, self.open_mode) as file:
             buffer = ''
-
             while True:
                 block = file.read(self.block_size)
                 if not block:
@@ -89,11 +116,27 @@ class Compressor(CompressorABC):
         outfile.write(MAGIC_COOKIE_DATA)
 
     def __make_header(self, outfile):
+        """
+        Создает заголовок архива.
+
+        Параметры:
+        - outfile (file object): Объект файла для записи архива.
+        """
         header = bytearray(32)
         header[0] = self.version
         outfile.write(bytes(header))
 
     def __generate_huffman_tree(self, file_path, relative_path):
+        """
+        Генерирует дерево Хаффмана для сжатия файла.
+
+        Параметры:
+        - file_path (str): Путь к файлу для сжатия.
+        - relative_path (str): Относительный путь к файлу.
+
+        Возвращает:
+        - HuffmanTree: Дерево Хаффмана.
+        """
         if self.codec is None:
             tree = HuffmanTree()
         else:
@@ -112,6 +155,16 @@ class Compressor(CompressorABC):
 
     @staticmethod
     def __bits_to_bytes(bits):
+        """
+        Конвертирует биты в байты.
+
+        Параметры:
+        - bits (str): Последовательность битов.
+
+        Возвращает:
+        - bits (str): оставшиеся биты.
+        - bytes (bytes_list):  байты полученные из битов.
+        """
         bytes_list = []
 
         while len(bits) >= 8:
@@ -123,6 +176,17 @@ class Compressor(CompressorABC):
 
     @staticmethod
     def __adder_zero(bits):
+        """
+        Добавляет недостающие нули к последовательности битов и конвертирует ее в байты.
+
+        Параметры:
+        - bits (str): Последовательность битов.
+
+        Возвращает:
+        - byte (bytes): байты полученные из битов с добавленными нулями.
+        - count_bits (bytes): байт с количеством добавленных нулей.
+
+        """
         count = (8 - (len(bits) % 8)) % 8
         bits += '0' * count
         byte = int(bits, 2).to_bytes(1, byteorder='big')
@@ -130,7 +194,15 @@ class Compressor(CompressorABC):
         return byte, count_bits
 
     def __write_directory(self, outfile, relative_dir, codes):
+        """
+        Записывает директорию в архив.
 
+        Параметры:
+        - outfile (file object): Объект файла для записи архива.
+        - relative_dir (str): Относительный путь к директории.
+        - codes (dict): Словарь кодов символов.
+
+        """
         bits_relative_dir = ''.join([codes[obj] for obj in relative_dir])
 
         _bits, _bytes = self.__bits_to_bytes(bits_relative_dir)
@@ -146,6 +218,13 @@ class Compressor(CompressorABC):
         outfile.write(MAGIC_COOKIE_DIR)
 
     def __compress_empty_dir(self, outfile, relative_dir):
+        """
+        Сжимает пустую директорию и записывает ее в архив.
+
+        Параметры:
+        - outfile (file object): Объект файла для записи архива.
+        - relative_dir (str): Относительный путь к директории.
+        """
         tree = HuffmanTree()
         tree.add_block(relative_dir)
         tree.build_tree()
@@ -161,6 +240,15 @@ class Compressor(CompressorABC):
 
     @staticmethod
     def __is_file(path):
+        """
+        Проверяет, является ли путь файлом.
+
+        Параметры:
+        - path (str): Путь к файлу.
+
+        Возвращает:
+        - bool: True, если путь указывает на файл, False в противном случае.
+        """
         _, extension = os.path.splitext(path)
         if extension:
             return True

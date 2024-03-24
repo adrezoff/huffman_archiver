@@ -5,11 +5,27 @@ from Huffman_method.const_byte import *
 
 
 class Decompressor(DecompressorABC):
+    """
+    Класс для декомпрессии архивов методом Хаффмана.
+    """
     def __init__(self, block_size=512):
+        """
+        Инициализация объекта декомпрессии.
+
+        Параметры:
+        - block_size (int, optional): Размер блока для чтения файла. По умолчанию 512.
+        """
         self.block_size = block_size
         self.version = 1
 
     def decompress(self, archive_file, out_path):
+        """
+        Декомпрессия архива.
+
+        Параметры:
+        - archive_file (str): Путь к архиву.
+        - out_path (str): Путь для сохранения разархивированных файлов.
+        """
         with open(archive_file, 'rb') as file:
             first_bytes = file.read(36)
             type_compress = self.__check_magic_header(first_bytes)
@@ -19,6 +35,13 @@ class Decompressor(DecompressorABC):
             self.__decompress__(archive_file, out_path)
 
     def __decompress__(self, archive_file, out_path):
+        """
+        Внутренний метод для декомпрессии архива.
+
+        Параметры:
+        - archive_file (str): Путь к архиву.
+        - out_path (str): Путь для сохранения разархивированных файлов.
+        """
         name_dir = os.path.splitext(os.path.basename(archive_file))[0]
         out_path = str(os.path.join(out_path, name_dir))
         if not self.__is_file(out_path):
@@ -65,6 +88,15 @@ class Decompressor(DecompressorABC):
                         os.makedirs(path_out_file, exist_ok=True)
 
     def __check_magic_header(self, block):
+        """
+        Проверяет магический заголовок архива и определяет тип компрессии.
+
+        Параметры:
+        - block (bytes): Байтовый блок, содержащий магический заголовок архива.
+
+        Возвращает:
+        - type_compress (int): Тип компрессии.
+        """
         len_magic_bytes = len(MAGIC_BYTES)
         len_all = len_magic_bytes + 32
         if len(block) >= len_all:
@@ -84,6 +116,15 @@ class Decompressor(DecompressorABC):
 
     @staticmethod
     def __read_tree(block):
+        """
+        Читает дерево Хаффмана из байтового блока.
+
+        Параметры:
+        - block (bytes): Байтовый блок, содержащий информацию о дереве.
+
+        Возвращает:
+        - tuple: Флаг, текущее дерево и оставшийся байтовый блок.
+        """
         cookie_tree = block.find(MAGIC_COOKIE_TREE)
         if cookie_tree >= 0:
             serializable_tree = block[:cookie_tree]
@@ -97,6 +138,16 @@ class Decompressor(DecompressorABC):
         return 1, None, block
 
     def __read_directory(self, block, tree):
+        """
+        Читает директорию из байтового блока.
+
+        Параметры:
+        - block (bytes): Байтовый блок, содержащий информацию о директории.
+        - tree (HuffmanTree): Дерево Хаффмана.
+
+        Возвращает:
+        - tuple: Флаг, текущий путь, оставшиеся биты и оставшийся байтовый блок.
+        """
         cookie_dir = block.find(MAGIC_COOKIE_DIR)
         if cookie_dir >= 0:
             path_dir = block[:cookie_dir]
@@ -111,6 +162,17 @@ class Decompressor(DecompressorABC):
             return 2, None, None, block
 
     def __reed_data(self, bits, block, tree):
+        """
+        Читает данные из байтового блока.
+
+        Параметры:
+        - bits (str): Последовательность битов.
+        - block (bytes): Байтовый блок, содержащий данные.
+        - tree (HuffmanTree): Дерево Хаффмана.
+
+        Возвращает:
+        - tuple: Флаг, декодированные данные, оставшиеся биты и оставшийся байтовый блок.
+        """
         cookie_data = block.find(MAGIC_COOKIE_DATA)
 
         if cookie_data >= 0:
@@ -132,11 +194,31 @@ class Decompressor(DecompressorABC):
 
     @staticmethod
     def __bytes_to_bits(data):
+        """
+        Конвертирует байты в биты.
+
+        Параметры:
+        - data (bytes): Байтовая последовательность.
+
+        Возвращает:
+        - bits (str): Последовательность битов.
+        """
         bits = ''.join(format(byte, '08b') for byte in data)
         return bits
 
     @staticmethod
     def __bits_to_bytes(bits, huffman_tree):
+        """
+        Конвертирует биты в байты.
+
+        Параметры:
+        - bits (str): Последовательность битов.
+        - huffman_tree (HuffmanTree): Дерево Хаффмана.
+
+        Возвращает:
+        - decoded_data (str): Декодированные данные.
+        - current_bits (str): Оставшиеся биты.
+        """
         decoded_chars = []
         current_bits = ''
         for bit in bits:
@@ -150,6 +232,15 @@ class Decompressor(DecompressorABC):
 
     @staticmethod
     def __is_file(path):
+        """
+        Проверяет, является ли путь файлом.
+
+        Параметры:
+        - path (str): Путь к файлу.
+
+        Возвращает:
+        - bool: True, если путь указывает на файл, False в противном случае.
+        """
         _, extension = os.path.splitext(path)
         if extension:
             return True

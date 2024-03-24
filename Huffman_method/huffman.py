@@ -4,26 +4,84 @@ import pickle
 
 
 class HuffmanNode:
+    """
+    Класс, представляющий узел в дереве Хаффмана.
+
+    Атрибуты:
+        char (str): Символ, представленный текущим узлом.
+        freq (int): Частота символа.
+        left (HuffmanNode): Левый дочерний узел.
+        right (HuffmanNode): Правый дочерний узел.
+    """
+
     def __init__(self, char, freq):
+        """
+        Инициализирует узел в дереве Хаффмана.
+
+        Параметры:
+            char (str): Символ, представленный текущим узлом.
+            freq (int): Частота символа.
+        """
         self.char = char
         self.freq = freq
         self.left = None
         self.right = None
 
     def __lt__(self, other):
+        """
+        Сравнивает текущий узел с другим узлом по частоте.
+
+        Параметры:
+            other (HuffmanNode): Другой узел для сравнения.
+
+        Возвращает:
+            bool: True, если частота текущего узла меньше, чем у другого узла, иначе False.
+        """
         return self.freq < other.freq
 
     def is_leaf(self):
+        """
+        Проверяет, является ли текущий узел листом.
+
+        Возвращает:
+            bool: True, если текущий узел лист, иначе False.
+        """
         return self.left is None and self.right is None
 
 
 class HuffmanTree:
+    """
+    Класс, представляющий дерево Хаффмана.
+
+    Атрибуты:
+        root (HuffmanNode): Корневой узел дерева.
+        frequency (Counter): Счетчик частот символов.
+        codec (any): Кодек для сериализации/десериализации дерева.
+    """
+
     def __init__(self, codec=None):
+        """
+        Инициализирует дерево Хаффмана.
+
+        Параметры:
+            codec (any, optional): Кодек для сериализации/десериализации дерева. По умолчанию None.
+        """
         self.root = None
         self.frequency = Counter()
         self.codec = codec
 
     def _build_codes(self, node, prefix='', codes={}):
+        """
+        Рекурсивно строит коды символов на основе дерева Хаффмана.
+
+        Параметры:
+            node (HuffmanNode): Текущий узел дерева.
+            prefix (str, optional): Префикс для текущего пути. По умолчанию ''.
+            codes (dict, optional): Словарь кодов символов. По умолчанию {}.
+
+        Возвращает:
+            dict: Словарь кодов символов.
+        """
         if node is not None:
             if node.char is not None:
                 codes[node.char] = prefix
@@ -32,6 +90,12 @@ class HuffmanTree:
         return codes
 
     def get_codes(self):
+        """
+        Возвращает коды символов, построенные на основе дерева Хаффмана.
+
+        Возвращает:
+            dict: Словарь кодов символов.
+        """
         if self.root is None:
             return {}
 
@@ -41,6 +105,17 @@ class HuffmanTree:
         return self._build_codes(self.root)
 
     def decode(self, bit_sequence, count=-1):
+        """
+        Декодирует битовую последовательность с использованием дерева Хаффмана.
+
+        Параметры:
+            bit_sequence (str): Битовая последовательность для декодирования.
+            count (int, optional): Количество дополнительных битов, которые следует проигнорировать.
+                По умолчанию -1.
+
+        Возвращает:
+            tuple: Декодированные данные и оставшиеся биты.
+        """
         if self.root is None:
             return
         current_node = self.root
@@ -76,11 +151,20 @@ class HuffmanTree:
         return decoded_data, remaining_bits
 
     def add_block(self, block):
+        """
+        Обновляет частоты символов на основе переданного блока.
+
+        Параметры:
+            block (bytes): Блок данных для обновления частот.
+        """
         if not block:
             return
         self.frequency.update(block)
 
     def build_tree(self):
+        """
+        Строит дерево Хаффмана на основе частот символов.
+        """
         if len(self.frequency) == 1:
             char, freq = next(iter(self.frequency.items()))
             self.root = HuffmanNode(char, freq)
@@ -100,12 +184,30 @@ class HuffmanTree:
             self.root = priority_queue[0]
 
     def serialize_to_string(self):
+        """
+        Сериализует дерево Хаффмана в строку.
+
+        Возвращает:
+            bytes: Сериализованное представление дерева Хаффмана.
+        """
         return pickle.dumps(self)
 
     def deserialize_from_string(self, serialized_tree_string):
+        """
+        Десериализует дерево Хаффмана из строки.
+
+        Параметры:
+            serialized_tree_string (bytes): Строка, содержащая сериализованное представление дерева Хаффмана.
+        """
         deserialized_tree = pickle.loads(serialized_tree_string)
         self.root = deserialized_tree.root
         self.codec = deserialized_tree.codec
 
     def get_codec(self):
+        """
+        Возвращает кодек, используемый для сериализации/десериализации дерева.
+
+        Возвращает:
+            any: Кодек для сериализации/десериализации дерева.
+        """
         return self.codec
