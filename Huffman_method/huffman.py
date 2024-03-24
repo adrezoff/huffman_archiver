@@ -35,7 +35,8 @@ class HuffmanNode:
             other (HuffmanNode): Другой узел для сравнения.
 
         Возвращает:
-            bool: True, если частота текущего узла меньше, чем у другого узла, иначе False.
+            bool: True, если частота текущего узла меньше,
+            чем у другого узла, иначе False.
         """
         return self.freq < other.freq
 
@@ -64,7 +65,8 @@ class HuffmanTree:
         Инициализирует дерево Хаффмана.
 
         Параметры:
-            codec (any, optional): Кодек для сериализации/десериализации дерева. По умолчанию None.
+            codec (str): Кодек для сериализации/десериализации
+             дерева. По умолчанию None.
         """
         self.root = None
         self.frequency = Counter()
@@ -76,8 +78,12 @@ class HuffmanTree:
 
         Параметры:
             node (HuffmanNode): Текущий узел дерева.
-            prefix (str, optional): Префикс для текущего пути. По умолчанию ''.
-            codes (dict, optional): Словарь кодов символов. По умолчанию {}.
+
+            prefix (str): Префикс для текущего пути.
+            По умолчанию ''.
+
+            codes (dict): Словарь кодов символов.
+            По умолчанию {}.
 
         Возвращает:
             dict: Словарь кодов символов.
@@ -91,7 +97,8 @@ class HuffmanTree:
 
     def get_codes(self):
         """
-        Возвращает коды символов, построенные на основе дерева Хаффмана.
+        Возвращает коды символов, построенные на основе дерева
+        Хаффмана.
 
         Возвращает:
             dict: Словарь кодов символов.
@@ -106,11 +113,15 @@ class HuffmanTree:
 
     def decode(self, bit_sequence, count=-1):
         """
-        Декодирует битовую последовательность с использованием дерева Хаффмана.
+        Декодирует битовую последовательность с использованием дерева
+        Хаффмана.
 
         Параметры:
-            bit_sequence (str): Битовая последовательность для декодирования.
-            count (int, optional): Количество дополнительных битов, которые следует проигнорировать.
+            bit_sequence (str): Битовая последовательность
+            для декодирования.
+
+            count (int): Количество дополнительных битов,
+            которые следует проигнорировать.
                 По умолчанию -1.
 
         Возвращает:
@@ -170,7 +181,9 @@ class HuffmanTree:
             self.root = HuffmanNode(char, freq)
             return
         else:
-            priority_queue = [HuffmanNode(char, freq) for char, freq in self.frequency.items()]
+            priority_queue = []
+            for char, freq in self.frequency.items():
+                priority_queue.append(HuffmanNode(char, freq))
             heapq.heapify(priority_queue)
 
             while len(priority_queue) > 1:
@@ -197,7 +210,8 @@ class HuffmanTree:
         Десериализует дерево Хаффмана из строки.
 
         Параметры:
-            serialized_tree_string (bytes): Строка, содержащая сериализованное представление дерева Хаффмана.
+            serialized_tree_string (bytes): Строка, содержащая
+            сериализованное представление дерева Хаффмана.
         """
         deserialized_tree = pickle.loads(serialized_tree_string)
         self.root = deserialized_tree.root
@@ -205,7 +219,8 @@ class HuffmanTree:
 
     def get_codec(self):
         """
-        Возвращает кодек, используемый для сериализации/десериализации дерева.
+        Возвращает кодек, используемый для сериализации/десериализации
+        дерева.
 
         Возвращает:
             any: Кодек для сериализации/десериализации дерева.

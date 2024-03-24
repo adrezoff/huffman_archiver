@@ -13,7 +13,8 @@ class Decompressor(DecompressorABC):
         Инициализация объекта декомпрессии.
 
         Параметры:
-        - block_size (int, optional): Размер блока для чтения файла. По умолчанию 512.
+        - block_size (int, optional): Размер блока для чтения файла.
+        По умолчанию 512.
         """
         self.block_size = block_size
         self.version = 1
@@ -89,10 +90,12 @@ class Decompressor(DecompressorABC):
 
     def __check_magic_header(self, block):
         """
-        Проверяет магический заголовок архива и определяет тип компрессии.
+        Проверяет магический заголовок архива и определяет
+        тип компрессии.
 
         Параметры:
-        - block (bytes): Байтовый блок, содержащий магический заголовок архива.
+        - block (bytes): Байтовый блок, содержащий магический
+        заголовок архива.
 
         Возвращает:
         - type_compress (int): Тип компрессии.
@@ -108,7 +111,8 @@ class Decompressor(DecompressorABC):
                 if current_version <= self.version:
                     return type_compress
                 else:
-                    raise ValueError("Version decompress don't supported this archive")
+                    raise ValueError("Version decompress don't "
+                                     "supported this archive")
             else:
                 raise ValueError("Invalid identify archive format")
 
@@ -131,7 +135,8 @@ class Decompressor(DecompressorABC):
             try:
                 tree = HuffmanTree()
                 tree.deserialize_from_string(serializable_tree)
-                return 2, tree, block[cookie_tree + len(MAGIC_COOKIE_TREE):]
+                all_len = cookie_tree + len(MAGIC_COOKIE_TREE)
+                return 2, tree, block[all_len:]
             except Exception as e:
                 print(f"Failed to deserialize tree: {e}")
 
@@ -142,11 +147,14 @@ class Decompressor(DecompressorABC):
         Читает директорию из байтового блока.
 
         Параметры:
-        - block (bytes): Байтовый блок, содержащий информацию о директории.
+        - block (bytes): Байтовый блок, содержащий информацию о
+        директории.
+
         - tree (HuffmanTree): Дерево Хаффмана.
 
         Возвращает:
-        - tuple: Флаг, текущий путь, оставшиеся биты и оставшийся байтовый блок.
+        - tuple: Флаг, текущий путь, оставшиеся биты и оставшийся
+        байтовый блок.
         """
         cookie_dir = block.find(MAGIC_COOKIE_DIR)
         if cookie_dir >= 0:
@@ -171,7 +179,8 @@ class Decompressor(DecompressorABC):
         - tree (HuffmanTree): Дерево Хаффмана.
 
         Возвращает:
-        - tuple: Флаг, декодированные данные, оставшиеся биты и оставшийся байтовый блок.
+        - tuple: Флаг, декодированные данные, оставшиеся биты и
+        оставшийся байтовый блок.
         """
         cookie_data = block.find(MAGIC_COOKIE_DATA)
 
@@ -180,7 +189,8 @@ class Decompressor(DecompressorABC):
             bits += self.__bytes_to_bits(last_data)
             count = bits[-8:]
             if count:
-                decoded_data, other_bits = tree.decode(bits, int(count, 2))
+                number = int(count, 2)
+                decoded_data, other_bits = tree.decode(bits, number)
             else:
                 decoded_data, other_bits = tree.decode(bits)
 
@@ -239,7 +249,8 @@ class Decompressor(DecompressorABC):
         - path (str): Путь к файлу.
 
         Возвращает:
-        - bool: True, если путь указывает на файл, False в противном случае.
+        - bool: True, если путь указывает на файл,
+        False в противном случае.
         """
         _, extension = os.path.splitext(path)
         if extension:
