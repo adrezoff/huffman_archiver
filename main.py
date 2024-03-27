@@ -5,13 +5,37 @@ from Huffman_method import Decompressor, Compressor
 
 
 def main():
-    parser = argparse.ArgumentParser(description='Huffman archiver')
-    parser.add_argument('-c', '--compress', action='store_true', help='Compress operation')
-    parser.add_argument('-d', '--decompress', action='store_true', help='Decompress operation')
-    parser.add_argument('-b', '--bin', action='store_true', help='Binary method')
-    parser.add_argument('-t', '--text', action='store_true', help='Text method')
-    parser.add_argument('input_path', help='Input file/directory path')
-    parser.add_argument('output_path', help='Output file/directory path')
+    parser = argparse.ArgumentParser(
+        description='Huffman archiver'
+    )
+    parser.add_argument(
+        '-c', '--compress',
+        action='store_true',
+        help='Compress operation'
+    )
+    parser.add_argument(
+        '-d', '--decompress',
+        action='store_true',
+        help='Decompress operation'
+    )
+    parser.add_argument(
+        '-b', '--bin',
+        action='store_true',
+        help='Binary method'
+    )
+    parser.add_argument(
+        '-t', '--text',
+        action='store_true',
+        help='Text method'
+    )
+    parser.add_argument(
+        'input_path',
+        help='Input file/directory path'
+    )
+    parser.add_argument(
+        'output_path',
+        help='Output file/directory path'
+    )
 
     args = parser.parse_args()
 

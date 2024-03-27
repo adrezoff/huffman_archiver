@@ -12,9 +12,9 @@ class Decompressor(DecompressorABC):
         """
         Инициализация объекта декомпрессии.
 
-        Параметры:
-        - block_size (int, optional): Размер блока для чтения файла.
-        По умолчанию 512.
+        Args:
+            block_size (int, optional): Размер блока для чтения файла.
+                По умолчанию 512.
         """
         self.block_size = block_size
         self.version = 1
@@ -23,25 +23,29 @@ class Decompressor(DecompressorABC):
         """
         Декомпрессия архива.
 
-        Параметры:
-        - archive_file (str): Путь к архиву.
-        - out_path (str): Путь для сохранения разархивированных файлов.
+        Args:
+            archive_file (str): Путь к архиву.
+            out_path (str): Путь для сохранения разархивированных файлов.
         """
         with open(archive_file, 'rb') as file:
             first_bytes = file.read(36)
             type_compress = self.__check_magic_header(first_bytes)
-        if type_compress == 0:
-            self.__decompress__(archive_file, out_path)
-        elif type_compress == 1:
-            self.__decompress__(archive_file, out_path)
+        try:
+            if type_compress == 0:
+                self.__decompress__(archive_file, out_path)
+            elif type_compress == 1:
+                self.__decompress__(archive_file, out_path)
+            return True
+        except ValueError:
+            return False
 
     def __decompress__(self, archive_file, out_path):
         """
         Внутренний метод для декомпрессии архива.
 
-        Параметры:
-        - archive_file (str): Путь к архиву.
-        - out_path (str): Путь для сохранения разархивированных файлов.
+        Args:
+            archive_file (str): Путь к архиву.
+            out_path (str): Путь для сохранения разархивированных файлов.
         """
         name_dir = os.path.splitext(os.path.basename(archive_file))[0]
         out_path = str(os.path.join(out_path, name_dir))
@@ -66,13 +70,17 @@ class Decompressor(DecompressorABC):
                     if current_tree:
                         codec = current_tree.get_codec()
                 if flag == 2:
-                    flag, current_path, bits, buffer = self.__read_directory(buffer, current_tree)
+                    flag, current_path, bits, buffer = \
+                        self.__read_directory(buffer, current_tree)
+
                     if self.__is_file(out_path):
                         path_out_file = out_path
                     else:
                         path_out_file = os.path.join(out_path, current_path)
                 if flag == 3:
-                    flag, decoded_data, bits, buffer = self.__reed_data(bits, buffer, current_tree)
+                    flag, decoded_data, bits, buffer = \
+                        self.__read_data(bits, buffer, current_tree)
+
                     if self.__is_file(path_out_file) or decoded_data:
                         dir_path = os.path.dirname(path_out_file)
                         os.makedirs(dir_path, exist_ok=True)
@@ -93,12 +101,12 @@ class Decompressor(DecompressorABC):
         Проверяет магический заголовок архива и определяет
         тип компрессии.
 
-        Параметры:
-        - block (bytes): Байтовый блок, содержащий магический
-        заголовок архива.
+        Args:
+            block (bytes): Байтовый блок, содержащий магический
+            заголовок архива.
 
-        Возвращает:
-        - type_compress (int): Тип компрессии.
+        Returns:
+            type_compress (int): Тип компрессии.
         """
         len_magic_bytes = len(MAGIC_BYTES)
         len_all = len_magic_bytes + 32
@@ -123,11 +131,11 @@ class Decompressor(DecompressorABC):
         """
         Читает дерево Хаффмана из байтового блока.
 
-        Параметры:
-        - block (bytes): Байтовый блок, содержащий информацию о дереве.
+        Args:
+            block (bytes): Байтовый блок, содержащий информацию о дереве.
 
-        Возвращает:
-        - tuple: Флаг, текущее дерево и оставшийся байтовый блок.
+        Returns:
+            tuple: Флаг, текущее дерево и оставшийся байтовый блок.
         """
         cookie_tree = block.find(MAGIC_COOKIE_TREE)
         if cookie_tree >= 0:
@@ -146,20 +154,17 @@ class Decompressor(DecompressorABC):
         """
         Читает директорию из байтового блока.
 
-        Параметры:
-        - block (bytes): Байтовый блок, содержащий информацию о
-        директории.
+        Args:
+            block (bytes): Байтовый блок, содержащий информацию о директории.
+            tree (HuffmanTree): Дерево Хаффмана.
 
-        - tree (HuffmanTree): Дерево Хаффмана.
-
-        Возвращает:
-        - tuple: Флаг, текущий путь, оставшиеся биты и оставшийся
-        байтовый блок.
+        Returns:
+            tuple: Флаг, текущий путь, оставшиеся биты и оставшийся байтовый блок.
         """
         cookie_dir = block.find(MAGIC_COOKIE_DIR)
         if cookie_dir >= 0:
             path_dir = block[:cookie_dir]
-            bits = self.__bytes_to_bits(path_dir)
+            bits = self._bytes_to_bits(path_dir)
             count = bits[-8:]
             decoded_path, other_bits = tree.decode(bits, int(count, 2))
             if tree.get_codec() is None:
@@ -169,24 +174,23 @@ class Decompressor(DecompressorABC):
         else:
             return 2, None, None, block
 
-    def __reed_data(self, bits, block, tree):
+    def __read_data(self, bits, block, tree):
         """
         Читает данные из байтового блока.
 
-        Параметры:
-        - bits (str): Последовательность битов.
-        - block (bytes): Байтовый блок, содержащий данные.
-        - tree (HuffmanTree): Дерево Хаффмана.
+        Args:
+            bits (str): Последовательность битов.
+            block (bytes): Байтовый блок, содержащий данные.
+            tree (HuffmanTree): Дерево Хаффмана.
 
-        Возвращает:
-        - tuple: Флаг, декодированные данные, оставшиеся биты и
-        оставшийся байтовый блок.
+        Returns:
+            tuple: Флаг, декодированные данные, оставшиеся биты и оставшийся байтовый блок.
         """
         cookie_data = block.find(MAGIC_COOKIE_DATA)
 
         if cookie_data >= 0:
             last_data = block[:cookie_data]
-            bits += self.__bytes_to_bits(last_data)
+            bits += self._bytes_to_bits(last_data)
             count = bits[-8:]
             if count:
                 number = int(count, 2)
@@ -197,37 +201,36 @@ class Decompressor(DecompressorABC):
             block = block[cookie_data + len(MAGIC_COOKIE_DATA):]
             return 1, decoded_data, other_bits, block
         else:
-            bits += self.__bytes_to_bits(block)
+            bits += self._bytes_to_bits(block)
             decoded_data, other_bits = tree.decode(bits)
 
             return 3, decoded_data, other_bits, bytes()
 
     @staticmethod
-    def __bytes_to_bits(data):
+    def _bytes_to_bits(data):
         """
         Конвертирует байты в биты.
 
-        Параметры:
-        - data (bytes): Байтовая последовательность.
+        Args:
+            data (bytes): Байтовая последовательность.
 
-        Возвращает:
-        - bits (str): Последовательность битов.
+        Returns:
+            str: Последовательность битов.
         """
         bits = ''.join(format(byte, '08b') for byte in data)
         return bits
 
     @staticmethod
-    def __bits_to_bytes(bits, huffman_tree):
+    def _bits_to_bytes(bits, huffman_tree):
         """
         Конвертирует биты в байты.
 
-        Параметры:
-        - bits (str): Последовательность битов.
-        - huffman_tree (HuffmanTree): Дерево Хаффмана.
+        Args:
+            bits (str): Последовательность битов.
+            huffman_tree (HuffmanTree): Дерево Хаффмана.
 
-        Возвращает:
-        - decoded_data (str): Декодированные данные.
-        - current_bits (str): Оставшиеся биты.
+        Returns:
+            tuple: Декодированные данные и оставшиеся биты.
         """
         decoded_chars = []
         current_bits = ''
@@ -245,12 +248,11 @@ class Decompressor(DecompressorABC):
         """
         Проверяет, является ли путь файлом.
 
-        Параметры:
-        - path (str): Путь к файлу.
+        Args:
+            path (str): Путь к файлу.
 
-        Возвращает:
-        - bool: True, если путь указывает на файл,
-        False в противном случае.
+        Returns:
+            bool: True, если путь указывает на файл, False в противном случае.
         """
         _, extension = os.path.splitext(path)
         if extension:
