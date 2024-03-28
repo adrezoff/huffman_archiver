@@ -39,7 +39,8 @@ class TestHuffmanTree(unittest.TestCase):
     def test_add_block(self):
         tree = HuffmanTree()
         tree.add_block('hello')
-        self.assertEqual(tree.frequency, Counter({'h': 1, 'e': 1, 'l': 2, 'o': 1}))
+        tempfenq = Counter({'h': 1, 'e': 1, 'l': 2, 'o': 1})
+        self.assertEqual(tree.frequency, tempfenq)
 
     def test_decode(self):
         tree = HuffmanTree()

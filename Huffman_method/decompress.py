@@ -29,17 +29,17 @@ class Decompressor(DecompressorABC):
         """
         with open(archive_file, 'rb') as file:
             first_bytes = file.read(36)
-            type_compress = self.__check_magic_header(first_bytes)
+            type_compress = self._check_magic_header(first_bytes)
         try:
             if type_compress == 0:
-                self.__decompress__(archive_file, out_path)
+                self._decompress_(archive_file, out_path)
             elif type_compress == 1:
-                self.__decompress__(archive_file, out_path)
+                self._decompress_(archive_file, out_path)
             return True
         except ValueError:
             return False
 
-    def __decompress__(self, archive_file, out_path):
+    def _decompress_(self, archive_file, out_path):
         """
         Внутренний метод для декомпрессии архива.
 
@@ -49,7 +49,7 @@ class Decompressor(DecompressorABC):
         """
         name_dir = os.path.splitext(os.path.basename(archive_file))[0]
         out_path = str(os.path.join(out_path, name_dir))
-        if not self.__is_file(out_path):
+        if not self._is_file(out_path):
             os.makedirs(out_path, exist_ok=True)
 
         buffer = bytes()
@@ -66,22 +66,22 @@ class Decompressor(DecompressorABC):
                     break
 
                 if flag == 1:
-                    flag, current_tree, buffer = self.__read_tree(buffer)
+                    flag, current_tree, buffer = self._read_tree(buffer)
                     if current_tree:
                         codec = current_tree.get_codec()
                 if flag == 2:
                     flag, current_path, bits, buffer = \
-                        self.__read_directory(buffer, current_tree)
+                        self._read_directory(buffer, current_tree)
 
-                    if self.__is_file(out_path):
+                    if self._is_file(out_path):
                         path_out_file = out_path
                     else:
                         path_out_file = os.path.join(out_path, current_path)
                 if flag == 3:
                     flag, decoded_data, bits, buffer = \
-                        self.__read_data(bits, buffer, current_tree)
+                        self._read_data(bits, buffer, current_tree)
 
-                    if self.__is_file(path_out_file) or decoded_data:
+                    if self._is_file(path_out_file) or decoded_data:
                         dir_path = os.path.dirname(path_out_file)
                         os.makedirs(dir_path, exist_ok=True)
                         if codec is None:
@@ -96,7 +96,7 @@ class Decompressor(DecompressorABC):
                     else:
                         os.makedirs(path_out_file, exist_ok=True)
 
-    def __check_magic_header(self, block):
+    def _check_magic_header(self, block):
         """
         Проверяет магический заголовок архива и определяет
         тип компрессии.
@@ -114,7 +114,7 @@ class Decompressor(DecompressorABC):
             if block[:len_magic_bytes] == MAGIC_BYTES:
                 header = block[len(MAGIC_BYTES):len_all]
                 current_version = int.from_bytes(header[:1], byteorder='big')
-                type_compress = int.from_bytes(header[1:3], byteorder='big')
+                type_compress = int.from_bytes(header[1:2], byteorder='big')
 
                 if current_version <= self.version:
                     return type_compress
@@ -127,7 +127,7 @@ class Decompressor(DecompressorABC):
         return None
 
     @staticmethod
-    def __read_tree(block):
+    def _read_tree(block):
         """
         Читает дерево Хаффмана из байтового блока.
 
@@ -150,7 +150,7 @@ class Decompressor(DecompressorABC):
 
         return 1, None, block
 
-    def __read_directory(self, block, tree):
+    def _read_directory(self, block, tree):
         """
         Читает директорию из байтового блока.
 
@@ -159,7 +159,8 @@ class Decompressor(DecompressorABC):
             tree (HuffmanTree): Дерево Хаффмана.
 
         Returns:
-            tuple: Флаг, текущий путь, оставшиеся биты и оставшийся байтовый блок.
+            tuple: Флаг, текущий путь, оставшиеся биты и оставшийся
+            байтовый блок.
         """
         cookie_dir = block.find(MAGIC_COOKIE_DIR)
         if cookie_dir >= 0:
@@ -174,7 +175,7 @@ class Decompressor(DecompressorABC):
         else:
             return 2, None, None, block
 
-    def __read_data(self, bits, block, tree):
+    def _read_data(self, bits, block, tree):
         """
         Читает данные из байтового блока.
 
@@ -184,7 +185,8 @@ class Decompressor(DecompressorABC):
             tree (HuffmanTree): Дерево Хаффмана.
 
         Returns:
-            tuple: Флаг, декодированные данные, оставшиеся биты и оставшийся байтовый блок.
+            tuple: Флаг, декодированные данные, оставшиеся биты и
+            оставшийся байтовый блок.
         """
         cookie_data = block.find(MAGIC_COOKIE_DATA)
 
@@ -192,11 +194,8 @@ class Decompressor(DecompressorABC):
             last_data = block[:cookie_data]
             bits += self._bytes_to_bits(last_data)
             count = bits[-8:]
-            if count:
-                number = int(count, 2)
-                decoded_data, other_bits = tree.decode(bits, number)
-            else:
-                decoded_data, other_bits = tree.decode(bits)
+            number = int(count, 2)
+            decoded_data, other_bits = tree.decode(bits, number)
 
             block = block[cookie_data + len(MAGIC_COOKIE_DATA):]
             return 1, decoded_data, other_bits, block
@@ -244,7 +243,7 @@ class Decompressor(DecompressorABC):
         return decoded_data, current_bits
 
     @staticmethod
-    def __is_file(path):
+    def _is_file(path):
         """
         Проверяет, является ли путь файлом.
 
