@@ -10,6 +10,7 @@ class TestCompressor(unittest.TestCase):
         self.test_file = os.path.join(self.test_dir.name, 'test.txt')
         with open(self.test_file, 'w') as f:
             f.write('asdfghjklqwertyui' * 10000)
+
     def tearDown(self):
         self.test_dir.cleanup()
 

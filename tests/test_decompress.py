@@ -55,7 +55,8 @@ class TestDecompressor(unittest.TestCase):
         data_bits = '0011010100111011010100' + '00' + '00000010'
         data_bytes = int(data_bits, 2).to_bytes(4, byteorder='big')
         block = data_bytes + MAGIC_COOKIE_DIR
-        flag, path, bits, remaining_bytes = decompressor._read_directory(block, tree)
+        result = decompressor._read_directory(block, tree)
+        flag, path, bits, remaining_bytes = result
         self.assertEqual(flag, 3)
         self.assertEqual(path, 'test_dir')
         self.assertEqual(bits, '')
@@ -69,7 +70,8 @@ class TestDecompressor(unittest.TestCase):
         data_bits = '1110001011101011001100' + '00' + '00000010'
         data_bytes = int(data_bits, 2).to_bytes(4, byteorder='big')
         block = data_bytes + MAGIC_COOKIE_DATA
-        flag, decoded_data, remaining_bits, remaining_bytes = decompressor._read_data('', block, tree)
+        result = decompressor._read_data('', block, tree)
+        flag, decoded_data, remaining_bits, remaining_bytes = result
         self.assertEqual(flag, 1)
         self.assertEqual(decoded_data, b'test_data')
         self.assertEqual(remaining_bits, '')

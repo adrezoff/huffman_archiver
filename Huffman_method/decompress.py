@@ -27,6 +27,7 @@ class Decompressor(DecompressorABC):
             archive_file (str): Путь к архиву.
             out_path (str): Путь для сохранения разархивированных файлов.
         """
+        print(archive_file)
         with open(archive_file, 'rb') as file:
             first_bytes = file.read(36)
             type_compress = self._check_magic_header(first_bytes)

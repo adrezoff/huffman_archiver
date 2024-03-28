@@ -206,7 +206,7 @@ class Compressor(CompressorABC):
 
         outfile.write(MAGIC_COOKIE_DIR)
 
-    def __compress_empty_dir(self, outfile, relative_dir):
+    def _compress_empty_dir(self, outfile, relative_dir):
         """
         Сжимает пустую директорию и записывает ее в архив.
 
@@ -224,7 +224,7 @@ class Compressor(CompressorABC):
 
         codes = tree.get_codes()
 
-        self.__write_directory(outfile, relative_dir, codes)
+        self._write_directory(outfile, relative_dir, codes)
         outfile.write(MAGIC_COOKIE_DATA)
 
     @staticmethod
