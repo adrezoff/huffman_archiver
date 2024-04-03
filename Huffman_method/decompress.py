@@ -2,6 +2,7 @@ import os
 from Huffman_method.huffman import HuffmanTree
 from Interfaces.decompress import DecompressorABC
 from Huffman_method.const_byte import *
+from Huffman_method.progress_bar import progress_bar
 
 
 class Decompressor(DecompressorABC):
@@ -17,7 +18,7 @@ class Decompressor(DecompressorABC):
                 По умолчанию 512.
         """
         self.block_size = block_size
-        self.version = 1
+        self.version = 2
 
     def decompress(self, archive_file, out_path):
         """
@@ -27,7 +28,6 @@ class Decompressor(DecompressorABC):
             archive_file (str): Путь к архиву.
             out_path (str): Путь для сохранения разархивированных файлов.
         """
-        print(archive_file)
         with open(archive_file, 'rb') as file:
             first_bytes = file.read(36)
             type_compress = self._check_magic_header(first_bytes)
@@ -58,6 +58,9 @@ class Decompressor(DecompressorABC):
         path_out_file = ''
         current_tree = HuffmanTree()
         codec = None
+
+        size_archive = os.path.getsize(archive_file)
+        progress_bar(0, size_archive)
 
         with open(archive_file, 'rb') as file:
             _ = file.read(36)
@@ -96,6 +99,7 @@ class Decompressor(DecompressorABC):
                                 out_file.write(decoded_data)
                     else:
                         os.makedirs(path_out_file, exist_ok=True)
+                progress_bar(file.tell(), size_archive)
 
     def _check_magic_header(self, block):
         """

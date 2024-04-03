@@ -2,6 +2,7 @@ import os
 from Huffman_method.huffman import HuffmanTree
 from Interfaces.compress import CompressorABC
 from Huffman_method.const_byte import *
+from Huffman_method.progress_bar import progress_bar
 
 
 class Compressor(CompressorABC):
@@ -15,13 +16,15 @@ class Compressor(CompressorABC):
             block_size (int): Размер блока для чтения файла. По умолчанию 128.
         """
         self.block_size = block_size
-        self.version = 1
+        self.version = 2
         self.codec = codec
         self.open_mode_files = ''
         if codec is None:
             self.open_mode = 'rb'
         else:
             self.open_mode = 'r'
+        self.progress_size = 0
+        self.size_path_in = 0
 
     def compress(self, path_in, path_out):
         """Сжимает файлы по указанному пути и записывает сжатые
@@ -34,7 +37,11 @@ class Compressor(CompressorABC):
         Returns:
             int: Разница в размере между исходными данными и сжатыми данными.
         """
-        size_path_in = 0
+        self.size_path_in = self.get_size(path_in)
+        self.progress_size = 0
+        if self.size_path_in:
+            progress_bar(0, self.size_path_in)
+
         os.makedirs(path_out, exist_ok=True)
         name_dir = os.path.basename(path_in)
         archive_file_path = os.path.join(path_out, f'{name_dir}.huff')
@@ -44,8 +51,10 @@ class Compressor(CompressorABC):
             self._make_header(outfile)
 
             if self._is_file(path_in):
-                size_path_in += os.path.getsize(path_in)
                 self._compress_file(outfile, path_in, path_in)
+
+                self.progress_size += self.get_size(path_in)
+                progress_bar(self.progress_size, self.size_path_in)
             else:
                 for root, dirs, files in os.walk(path_in):
                     relative_dir = os.path.relpath(root, path_in)
@@ -61,11 +70,10 @@ class Compressor(CompressorABC):
                             continue
 
                         file_path = os.path.join(root, filename)
-                        size_path_in += os.path.getsize(file_path)
-
                         self._compress_file(outfile, file_path, path_in)
-        size_archive = os.path.getsize(archive_file_path)
-        return size_path_in - size_archive
+
+        size_archive = self.get_size(archive_file_path)
+        return self.size_path_in, size_archive
 
     def _compress_file(self, outfile, file_path, main_dir):
         """Сжимает файл и записывает его в архив.
@@ -96,7 +104,10 @@ class Compressor(CompressorABC):
                 block = file.read(self.block_size)
                 if not block:
                     break
+                self.progress_size += len(block)
                 buffer += ''.join([codes[obj] for obj in block])
+
+                progress_bar(self.progress_size, self.size_path_in)
 
                 buffer, compressed_block = self._bits_to_bytes(buffer)
                 outfile.write(compressed_block)
@@ -243,3 +254,27 @@ class Compressor(CompressorABC):
             return True
         else:
             return False
+
+    def get_size(self, path):
+        """
+        Получает размер, файла или директории по заданному пути.
+
+        Args:
+            path (str): Путь.
+
+        Returns:
+            int: Размер в байтах.
+        """
+        if self._is_file(path):
+            return os.path.getsize(path)
+        elif os.path.isdir(path):
+            total_size = 0
+            for dirpath, _, filenames in os.walk(path):
+                for filename in filenames:
+                    if filename == '.DS_Store':
+                        continue
+                    filepath = os.path.join(dirpath, filename)
+                    total_size += os.path.getsize(filepath)
+            return total_size
+        else:
+            return None

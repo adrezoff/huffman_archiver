@@ -19,7 +19,7 @@ class TestCompressor(unittest.TestCase):
         output_file = os.path.join(self.test_dir.name, 'test.huff')
         size_diff = compressor.compress(self.test_file, output_file)
         self.assertTrue(os.path.exists(output_file))
-        self.assertGreater(size_diff, 0)
+        self.assertGreater(size_diff[0 ]- size_diff[1], 0)
 
     def test_compress_empty_directory(self):
         compressor = Compressor()
@@ -29,7 +29,7 @@ class TestCompressor(unittest.TestCase):
         size_diff = compressor.compress(output_dir, output_file)
         self.assertTrue(os.path.exists(output_file))
         epsilon = 1024
-        self.assertGreater(epsilon, abs(size_diff))
+        self.assertGreater(epsilon, abs(size_diff[0] - size_diff[1]))
 
     def test_make_header(self):
         compressor = Compressor()
@@ -87,7 +87,7 @@ class TestCompressor(unittest.TestCase):
             with tempfile.TemporaryDirectory() as output_dir:
                 compressor = Compressor()
                 diff_size = compressor.compress(temp_dir, output_dir)
-                self.assertTrue(diff_size > 0)
+                self.assertTrue(diff_size[0] - diff_size[1] > 0)
 
                 for file_name in test_files:
                     os.unlink(os.path.join(temp_dir, file_name))

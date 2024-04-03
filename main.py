@@ -4,6 +4,21 @@ import time
 from Huffman_method import Decompressor, Compressor
 
 
+def calculate_percentage(size_path_in, size_archive):
+    """
+    Вычисляет процент сжатия.
+    Args:
+        size_path_in (int): Размер исходных данных.
+        size_archive (int): Размер архива.
+
+    Returns:
+        int: Процент сжатия в диапазоне [0,100).
+    """
+    if size_path_in == 0:
+        return 0  # Избегаем деления на ноль
+    return ((size_path_in - size_archive) / size_path_in) * 100
+
+
 def main():
     parser = argparse.ArgumentParser(
         description='Huffman archiver'
@@ -43,17 +58,22 @@ def main():
         method = '-b' if args.bin else '-t'
         compressor = Compressor() if method == '-b' else Compressor('utf-8')
         time1 = time.time()
-        diff_size = compressor.compress(args.input_path, args.output_path)
+        input = args.input_path
+        output = args.output_path
+        size_path, size_arch = compressor.compress(input, output)
         time2 = time.time()
-        print(f'Compress time: {time2 - time1} sec.')
-        print(f'Difference size: {diff_size} bytes')
+        percents = calculate_percentage(size_path, size_arch)
+
+        print(f'\nCompress time: {time2 - time1} sec.')
+        print(f'Difference size: {size_path - size_arch} bytes')
+        print(f'Percents compress: {percents} %')
 
     elif args.decompress:
         decompressor = Decompressor()
         time1 = time.time()
         decompressor.decompress(args.input_path, args.output_path)
         time2 = time.time()
-        print(f'Decompress time: {time2 - time1} sec.')
+        print(f'\nDecompress time: {time2 - time1} sec.')
 
 
 if __name__ == "__main__":
