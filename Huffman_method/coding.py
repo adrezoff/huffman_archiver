@@ -1,133 +1,8 @@
-def sub_bytes(state):
-    for i in range(4):
-        for j in range(4):
-            state[i][j] = S_BOX[state[i][j]]
-    return state
+from typing import List
 
-
-def shift_rows(state):
-    for i in range(1, 4):
-        state[i] = state[i][i:] + state[i][:i]
-    return state
-
-
-def mix_columns(state):
-    for i in range(4):
-        s0 = (gmul(0x02, state[0][i]) ^
-              gmul(0x03, state[1][i]) ^
-              state[2][i] ^ state[3][i])
-
-        s1 = (state[0][i] ^
-              gmul(0x02, state[1][i]) ^
-              gmul(0x03, state[2][i]) ^
-              state[3][i])
-
-        s2 = (state[0][i] ^
-              state[1][i] ^
-              gmul(0x02, state[2][i]) ^
-              gmul(0x03, state[3][i]))
-
-        s3 = (gmul(0x03, state[0][i]) ^
-              state[1][i] ^ state[2][i] ^
-              gmul(0x02, state[3][i]))
-
-        state[0][i] = s0
-        state[1][i] = s1
-        state[2][i] = s2
-        state[3][i] = s3
-    return state
-
-
-def add_round_key(state, round_key):
-    for i in range(4):
-        for j in range(4):
-            state[i][j] ^= round_key[i][j]
-    return state
-
-
-def expand_key(master_key):
-    key_columns = bytes_to_matrix(master_key)
-    iteration_size = len(master_key) // 4
-
-    i = 1
-    while len(key_columns) < (Nb * (Nr + 1)):
-        word = list(key_columns[-1])
-
-        if len(key_columns) % iteration_size == 0:
-            word.append(word.pop(0))
-            word = [S_BOX[b] for b in word]
-            word[0] ^= RCON[i]
-            i += 1
-
-        word = [word[i] ^ key_columns[-iteration_size][i] for i in range(4)]
-        key_columns.append(word)
-
-    return [key_columns[i:i + Nb] for i in range(0, len(key_columns), Nb)]
-
-
-def mix_columns_inv(state):
-    for i in range(4):
-        s0 = (gmul(0x0e, state[0][i]) ^
-              gmul(0x0b, state[1][i]) ^
-              gmul(0x0d, state[2][i]) ^
-              gmul(0x09, state[3][i]))
-
-        s1 = (gmul(0x09, state[0][i]) ^
-              gmul(0x0e, state[1][i]) ^
-              gmul(0x0b, state[2][i]) ^
-              gmul(0x0d, state[3][i]))
-
-        s2 = (gmul(0x0d, state[0][i]) ^
-              gmul(0x09, state[1][i]) ^
-              gmul(0x0e, state[2][i]) ^
-              gmul(0x0b, state[3][i]))
-
-        s3 = (gmul(0x0b, state[0][i]) ^
-              gmul(0x0d, state[1][i]) ^
-              gmul(0x09, state[2][i]) ^
-              gmul(0x0e, state[3][i]))
-
-        state[0][i] = s0
-        state[1][i] = s1
-        state[2][i] = s2
-        state[3][i] = s3
-    return state
-
-
-def shift_rows_inv(state):
-    for i in range(1, 4):
-        state[i] = state[i][-i:] + state[i][:-i]
-    return state
-
-
-def sub_bytes_inv(state):
-    for i in range(4):
-        for j in range(4):
-            state[i][j] = INV_S_BOX[state[i][j]]
-    return state
-
-
-def bytes_to_matrix(text):
-    return [list(text[i:i + 4]) for i in range(0, len(text), 4)]
-
-
-def matrix_to_bytes(matrix):
-    return bytes(sum(matrix, []))
-
-
-def gmul(a, b):
-    p = 0
-    for _ in range(8):
-        if b & 1:
-            p ^= a
-        hi_bit_set = a & 0x80
-        a <<= 1
-        a &= 0xFF
-        if hi_bit_set:
-            a ^= 0x1B
-        b >>= 1
-    return p
-
+"""
+ Алгоритм взят с wikipedia.org/wiki/AES_(стандарт_шифрования)
+"""
 
 S_BOX = [
     0x63, 0x7c, 0x77, 0x7b, 0xf2, 0x6b, 0x6f, 0xc5, 0x30, 0x01, 0x67, 0x2b,
@@ -209,7 +84,213 @@ Nb = 4
 Nr = 10
 
 
-def aes_encrypt(message, key):
+def sub_bytes(state: List[List[int]]) -> List[List[int]]:
+    """
+    Преобразует состояние по методу SubBytes в AES.
+
+    :param state: Матрица состояния (4x4) байтов.
+    :return: Преобразованная матрица состояния.
+    """
+    for i in range(4):
+        for j in range(4):
+            state[i][j] = S_BOX[state[i][j]]
+    return state
+
+
+def shift_rows(state: List[List[int]]) -> List[List[int]]:
+    """
+    Выполняет преобразование ShiftRows в AES.
+
+    :param state: Матрица состояния (4x4) байтов.
+    :return: Преобразованная матрица состояния.
+    """
+    for i in range(1, 4):
+        state[i] = state[i][i:] + state[i][:i]
+    return state
+
+
+def mix_columns(state: List[List[int]]) -> List[List[int]]:
+    """
+    Выполняет преобразование MixColumns в AES.
+
+    :param state: Матрица состояния (4x4) байтов.
+    :return: Преобразованная матрица состояния.
+    """
+    for i in range(4):
+        s0 = (gmul(0x02, state[0][i]) ^
+              gmul(0x03, state[1][i]) ^
+              state[2][i] ^ state[3][i])
+
+        s1 = (state[0][i] ^
+              gmul(0x02, state[1][i]) ^
+              gmul(0x03, state[2][i]) ^
+              state[3][i])
+
+        s2 = (state[0][i] ^
+              state[1][i] ^
+              gmul(0x02, state[2][i]) ^
+              gmul(0x03, state[3][i]))
+
+        s3 = (gmul(0x03, state[0][i]) ^
+              state[1][i] ^ state[2][i] ^
+              gmul(0x02, state[3][i]))
+
+        state[0][i] = s0
+        state[1][i] = s1
+        state[2][i] = s2
+        state[3][i] = s3
+    return state
+
+
+def add_round_key(state: List[List[int]], round_key: List[List[int]]) -> List[List[int]]:
+    """
+    Выполняет преобразование AddRoundKey в AES.
+
+    :param state: Матрица состояния (4x4) байтов.
+    :param round_key: Ключ раунда (4x4) байтов.
+    :return: Преобразованная матрица состояния.
+    """
+    for i in range(4):
+        for j in range(4):
+            state[i][j] ^= round_key[i][j]
+    return state
+
+
+def expand_key(master_key: bytes) -> list[list[list[int]]]:
+    """
+    Расширяет ключ шифрования для использования в AES.
+
+    :param master_key: Основной ключ шифрования.
+    :return: Расширенный ключ шифрования.
+    """
+    key_columns = bytes_to_matrix(master_key)
+    iteration_size = len(master_key) // 4
+
+    i = 1
+    while len(key_columns) < (Nb * (Nr + 1)):
+        word = list(key_columns[-1])
+
+        if len(key_columns) % iteration_size == 0:
+            word.append(word.pop(0))
+            word = [S_BOX[b] for b in word]
+            word[0] ^= RCON[i]
+            i += 1
+
+        word = [word[i] ^ key_columns[-iteration_size][i] for i in range(4)]
+        key_columns.append(word)
+
+    return [key_columns[i:i + Nb] for i in range(0, len(key_columns), Nb)]
+
+
+def mix_columns_inv(state: List[List[int]]) -> List[List[int]]:
+    """
+    Выполняет обратное преобразование MixColumns в AES.
+
+    :param state: Матрица состояния (4x4) байтов.
+    :return: Преобразованная матрица состояния.
+    """
+    for i in range(4):
+        s0 = (gmul(0x0e, state[0][i]) ^
+              gmul(0x0b, state[1][i]) ^
+              gmul(0x0d, state[2][i]) ^
+              gmul(0x09, state[3][i]))
+
+        s1 = (gmul(0x09, state[0][i]) ^
+              gmul(0x0e, state[1][i]) ^
+              gmul(0x0b, state[2][i]) ^
+              gmul(0x0d, state[3][i]))
+
+        s2 = (gmul(0x0d, state[0][i]) ^
+              gmul(0x09, state[1][i]) ^
+              gmul(0x0e, state[2][i]) ^
+              gmul(0x0b, state[3][i]))
+
+        s3 = (gmul(0x0b, state[0][i]) ^
+              gmul(0x0d, state[1][i]) ^
+              gmul(0x09, state[2][i]) ^
+              gmul(0x0e, state[3][i]))
+
+        state[0][i] = s0
+        state[1][i] = s1
+        state[2][i] = s2
+        state[3][i] = s3
+    return state
+
+
+def shift_rows_inv(state: List[List[int]]) -> List[List[int]]:
+    """
+    Выполняет обратное преобразование ShiftRows в AES.
+
+    :param state: Матрица состояния (4x4) байтов.
+    :return: Преобразованная матрица состояния.
+    """
+    for i in range(1, 4):
+        state[i] = state[i][-i:] + state[i][:-i]
+    return state
+
+
+def sub_bytes_inv(state: List[List[int]]) -> List[List[int]]:
+    """
+    Выполняет обратное преобразование SubBytes в AES.
+
+    :param state: Матрица состояния (4x4) байтов.
+    :return: Преобразованная матрица состояния.
+    """
+    for i in range(4):
+        for j in range(4):
+            state[i][j] = INV_S_BOX[state[i][j]]
+    return state
+
+
+def bytes_to_matrix(text: bytes) -> List[List[int]]:
+    """
+    Преобразует байтовую строку в матрицу байтов для AES.
+
+    :param text: Байтовая строка.
+    :return: Матрица байтов (4x4).
+    """
+    return [list(text[i:i + 4]) for i in range(0, len(text), 4)]
+
+
+def matrix_to_bytes(matrix: List[List[int]]) -> bytes:
+    """
+    Преобразует матрицу байтов в байтовую строку для AES.
+
+    :param matrix: Матрица байтов (4x4).
+    :return: Байтовая строка.
+    """
+    return bytes(sum(matrix, []))
+
+
+def gmul(a: int, b: int) -> int:
+    """
+    Умножение двух чисел в поле Галуа.
+
+    :param a: Первый множитель.
+    :param b: Второй множитель.
+    :return: Произведение a и b в поле Галуа.
+    """
+    p = 0
+    for _ in range(8):
+        if b & 1:
+            p ^= a
+        hi_bit_set = a & 0x80
+        a <<= 1
+        a &= 0xFF
+        if hi_bit_set:
+            a ^= 0x1B
+        b >>= 1
+    return p
+
+
+def aes_encrypt(message: bytes, key: bytes) -> bytes:
+    """
+    Шифрует сообщение с использованием AES.
+
+    :param message: Сообщение для шифрования (байтовая строка).
+    :param key: Ключ шифрования (байтовая строка).
+    :return: Зашифрованное сообщение (байтовая строка).
+    """
     state = bytes_to_matrix(message)
     round_keys = expand_key(key)
     state = add_round_key(state, round_keys[0])
@@ -227,7 +308,14 @@ def aes_encrypt(message, key):
     return matrix_to_bytes(state)
 
 
-def aes_decrypt(ciphertext, key):
+def aes_decrypt(ciphertext: bytes, key: bytes) -> bytes:
+    """
+    Расшифровывает зашифрованное сообщение с использованием AES.
+
+    :param ciphertext: Зашифрованное сообщение (байтовая строка).
+    :param key: Ключ шифрования (байтовая строка).
+    :return: Расшифрованное сообщение (байтовая строка).
+    """
     state = bytes_to_matrix(ciphertext)
     round_keys = expand_key(key)
     state = add_round_key(state, round_keys[Nr])

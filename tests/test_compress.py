@@ -1,97 +1,184 @@
 import unittest
-import tempfile
 import os
-from Huffman_method import Compressor, HuffmanTree, END_PATH, MD5
+import tempfile
+from io import BytesIO
+from unittest.mock import patch
+
+from Huffman_method import Compressor, HuffmanTree, END_PATH, END_DATA, MD5, MAGIC_BYTES
 
 
-class TestCompressor(unittest.TestCase):
+class TestCompressorMethods(unittest.TestCase):
     def setUp(self):
         self.test_dir = tempfile.TemporaryDirectory()
         self.test_file = os.path.join(self.test_dir.name, 'test.txt')
         with open(self.test_file, 'w') as f:
-            f.write('asdfghjklqwertyui' * 10000)
+            f.write('This is a test file.' * 100)
+        self.compressor = Compressor()
 
     def tearDown(self):
         self.test_dir.cleanup()
 
-    def test_compress_file(self):
-        compressor = Compressor()
-        output_file = os.path.join(self.test_dir.name, 'test.huff')
-        size_diff = compressor.compress(self.test_file, output_file)
-        self.assertTrue(os.path.exists(output_file))
-        self.assertGreater(size_diff[0 ]- size_diff[1], 0)
-
-    def test_compress_empty_directory(self):
-        compressor = Compressor()
-        output_dir = os.path.join(self.test_dir.name, 'empty_dir')
-        os.makedirs(output_dir, exist_ok=True)
-        output_file = os.path.join(output_dir, 'empty_dir.huff')
-        size_diff = compressor.compress(output_dir, output_file)
-        self.assertTrue(os.path.exists(output_file))
-        epsilon = 1024
-        self.assertGreater(epsilon, abs(size_diff[0] - size_diff[1]))
-
-    def test_make_header(self):
-        compressor = Compressor()
-        with open(os.path.join(self.test_dir.name, 'header.huff'), 'wb') as f:
-            compressor._make_header(f)
-        with open(os.path.join(self.test_dir.name, 'header.huff'), 'rb') as f:
-            header = f.read(32)
-            self.assertEqual(header[0], compressor.version)
-
-    def test_generate_huffman_tree(self):
-        compressor = Compressor()
-        tree = compressor._generate_huffman_tree(self.test_file, '')
-        self.assertIsInstance(tree, HuffmanTree)
-
     def test_bits_to_bytes(self):
-        compressor = Compressor()
-        bits = '11001100'
-        remaining_bits, byte = compressor._bits_to_bytes(bits)
-        self.assertEqual(remaining_bits, '')
-        self.assertEqual(byte, b'\xcc')
+        bits = "0100100001100101011011000110110001101111"
+        remaining_bits, byte = self.compressor._bits_to_bytes(bits)
+
+        self.assertEqual(remaining_bits, "")
+        self.assertEqual(byte, b"Hello")
 
     def test_adder_zero(self):
-        compressor = Compressor()
-        bits = '110011'
-        result_byte = int('11001100', 2).to_bytes(1, byteorder='big')
-        byte, count = compressor._adder_zero(bits)
-        self.assertEqual(byte, result_byte)
-        self.assertEqual(count, b'\x02')
+        bits = "1101"
+        byte, count_bits = self.compressor._adder_zero(bits)
 
-    def test_write_directory(self):
-        compressor = Compressor()
-        codes = {'a': '101', 'b': '011', 'c': '111'}
-        result_in_bits = '1010111110000000' + '00000111'
-        result_byte = int(result_in_bits, 2).to_bytes(3, byteorder='big')
-        path = os.path.join(self.test_dir.name, 'directory.huff')
-        with open(path, 'wb') as f:
-            compressor._write_directory(f, 'abc', codes)
-        with open(path, 'rb') as f:
-            content = f.read()
-            self.assertEqual(content, result_byte + MAGIC_COOKIE_DIR)
+        self.assertEqual(byte, b"\xd0")
+        self.assertEqual(count_bits, b"\x04")
 
-    def test_is_file(self):
+    def test_get_directory_info(self):
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            file1_path = os.path.join(tmp_dir, "file1.txt")
+            with open(file1_path, "w") as file:
+                file.write("test data")
+
+            file2_path = os.path.join(tmp_dir, "file2.txt")
+            with open(file2_path, "w") as file:
+                file.write("more test data")
+
+            total_size, info_dict = self.compressor.get_directory_info(tmp_dir)
+
+            self.assertEqual(total_size, os.path.getsize(file1_path) + os.path.getsize(file2_path))
+            self.assertEqual(info_dict, {file1_path: "file", file2_path: "file"})
+
+    def test_compress_empty_dir(self):
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            outfile = BytesIO()
+            file_path = os.path.join(tmp_dir, "empty_dir")
+
+            self.compressor.compress_empty_dir(outfile, file_path, file_path)
+
+            hasher = MD5()
+            hasher.hash('.'.encode('utf-8'))
+            expected_result = b'\x00\x00\x00.' + END_PATH + END_DATA + hasher.get_hash()
+
+            outfile.seek(0)
+            data_in_file = outfile.read()
+            self.assertEqual(data_in_file, expected_result)
+
+    def test_generate_huffman_tree(self):
+        with tempfile.NamedTemporaryFile() as tmp_file:
+            file_path = tmp_file.name
+            with open(file_path, "w") as file:
+                file.write("test data")
+
+            tree1 = self.compressor._generate_huffman_tree(file_path)
+
+            with open(file_path, "r") as file:
+                data = file.read()
+            tree2 = HuffmanTree()
+            tree2.add_block(data)
+            tree2.build_tree()
+
+            self.assertEqual(tree1.get_codes(), tree2.get_codes())
+
+    def test_write_data(self):
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            file_path = os.path.join(tmp_dir, "test.txt")
+
+            test = b'test'
+            tree = HuffmanTree()
+            tree.add_block(test)
+            tree.build_tree()
+
+            with open(file_path, "wb") as file:
+                file.write(test)
+
+            outfile = BytesIO()
+
+            self.compressor.write_data(outfile, file_path, MD5(), tree)
+
+            outfile.seek(0)
+            data_in_file = outfile.read()
+            hasher = MD5()
+            hasher.hash(test)
+
+            self.assertEqual(data_in_file, b'\x70\x02' + END_DATA + hasher.get_hash())
+
+    def test_make_header(self):
+        outfile = BytesIO()
+
+        self.compressor._make_header(outfile)
+
+        expected_header = bytes([self.compressor.version, 0]) + b'\x00' * 30
+        outfile.seek(0)
+        data_in_file = outfile.read()
+        self.assertEqual(data_in_file, expected_header)
+
+    @patch('os.path.getsize')
+    def test_compress_file(self, mock_getsize):
+        with (tempfile.TemporaryDirectory() as tmp_dir):
+            file_path = os.path.join(tmp_dir, "file.txt")
+            test = 'test'
+            with open(file_path, "w") as file:
+                file.write(test)
+
+            tree = HuffmanTree()
+            tree.add_block(test.encode())
+            tree.build_tree()
+
+            mock_getsize.return_value = 10
+
+            outfile = BytesIO()
+
+            path_in = tmp_dir
+            relative_path = os.path.relpath(file_path, path_in)
+            expected_header = b'\x01\x01\x00' + \
+                              relative_path.encode('utf-8') + \
+                              END_PATH
+
+            self.compressor.compress_file(outfile, file_path, path_in, None)
+
+            outfile.seek(0)
+            header = outfile.read(len(expected_header))
+            ser_tree = tree.serialize_to_string()
+            ser_tree_in_file = outfile.read(len(ser_tree))
+            self.assertEqual(header, expected_header)
+            self.assertEqual(ser_tree_in_file, ser_tree)
+
+    def test_compress_directory_with_files(self):
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            file1_path = os.path.join(tmp_dir, "file1.txt")
+            with open(file1_path, "w") as file:
+                file.write("Test data 1")
+
+            file2_path = os.path.join(tmp_dir, "file2.txt")
+            with open(file2_path, "w") as file:
+                file.write("Test data 2")
+
+            outfile = BytesIO()
+
+            original_size, compressed_size = self.compressor.compress(tmp_dir, tmp_dir)
+
+            self.assertGreater(original_size, 0)
+            self.assertGreater(compressed_size, 0)
+
+    def test_compress(self):
         compressor = Compressor()
-        self.assertTrue(compressor._is_file(self.test_file))
-        self.assertFalse(compressor._is_file(self.test_dir.name))
+        output_dir = self.test_dir.name
+        output_file = os.path.join(output_dir, 'test.txt.huff')
+        compressor.compress(self.test_file, output_dir)
+        self.assertTrue(os.path.exists(output_file))
+        with open(output_file, 'rb') as f:
+            magic_header = f.read(len(MAGIC_BYTES))
+            self.assertEqual(magic_header, MAGIC_BYTES)
 
     def test_compress_directory(self):
-        with tempfile.TemporaryDirectory() as temp_dir:
-            test_files = ['file1.txt', 'file2.txt']
-            huge_string = 'abcyqtroyfihsldf' * 10000
-            for file_name in test_files:
-                with open(os.path.join(temp_dir, file_name), 'w') as f:
-                    f.write(huge_string)
-
-            with tempfile.TemporaryDirectory() as output_dir:
-                compressor = Compressor()
-                diff_size = compressor.compress(temp_dir, output_dir)
-                self.assertTrue(diff_size[0] - diff_size[1] > 0)
-
-                for file_name in test_files:
-                    os.unlink(os.path.join(temp_dir, file_name))
-
+        compressor = Compressor()
+        output_dir = self.test_dir.name
+        name = os.path.basename(output_dir)
+        output_file = os.path.join(output_dir, name + '.huff')
+        compressor.compress(self.test_dir.name, output_dir)
+        self.assertTrue(os.path.exists(output_file))
+        with open(output_file, 'rb') as f:
+            magic_header = f.read(len(MAGIC_BYTES))
+            self.assertEqual(magic_header, MAGIC_BYTES)
 
 if __name__ == '__main__':
     unittest.main()

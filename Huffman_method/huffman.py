@@ -133,7 +133,7 @@ class HuffmanTree:
 
         return decoded_data, remaining_bits
 
-    def add_block(self, block: str) -> None:
+    def add_block(self, block: Union[str, bytes]) -> None:
         """
         Добавляет блок данных в счетчик частот.
 

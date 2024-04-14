@@ -1,5 +1,5 @@
 import struct
-from typing import List
+from typing import List, Union
 
 
 class MD5:

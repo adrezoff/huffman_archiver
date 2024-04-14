@@ -33,6 +33,8 @@ class ProgressBar:
 
         :param pointer: Значение указателя.
         """
+        self.progress = pointer
+
         if self.total != 0:
             percent = float(pointer) / self.total
         else:

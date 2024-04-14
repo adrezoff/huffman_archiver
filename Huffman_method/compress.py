@@ -1,5 +1,5 @@
 import os
-
+from typing import Dict, Optional, Tuple, BinaryIO
 from Huffman_method.coding import aes_encrypt
 from Huffman_method.huffman import HuffmanTree
 from Interfaces.compress import ICompressor
@@ -9,22 +9,46 @@ from Huffman_method.hasher import MD5
 
 
 class Compressor(ICompressor):
-    def __init__(self, codec=None, block_size=128):
-        self.block_size = block_size
-        self.version = 2
-        self.codec = codec
-        self.open_mode_files = ''
-        if codec is None:
-            self.open_mode = 'rb'
-        else:
-            self.open_mode = 'r'
-        self.progress_bar = ProgressBar()
+    """
+    Реализует сжатие файлов и директорий с использованием метода Хаффмана.
+    """
 
-    def compress(self, path_in, path_out, protected_files=None):
+    def __init__(self, codec: Optional[str] = None, block_size: int = 256):
+        """
+        Инициализирует объект компрессора.
+
+        :param codec: Кодек для чтения файлов. По умолчанию None.
+        :param block_size: Размер блока данных для чтения. По умолчанию 128.
+        """
+        self.block_size: int = block_size
+        self.version: int = 2
+        self.codec: Optional[str] = codec
+        self.open_mode_files: str = ''
+        if codec is None:
+            self.open_mode: str = 'rb'
+        else:
+            self.open_mode: str = 'r'
+        self.progress_bar: ProgressBar = ProgressBar()
+
+    def compress(self,
+                 path_in: str,
+                 path_out: str,
+                 protected_files: Optional[Dict[str, bytes]] = None
+                 ) -> Tuple[int, int]:
+        """
+        Сжимает указанный файл или директорию.
+
+        :param path_in: Путь к файлу или директории для сжатия.
+        :param path_out: Путь к выходному архиву.
+        :param protected_files: Зашифрованные файлы и пароли для них.
+              По умолчанию None.
+        :return: Кортеж, содержащий размер исходных данных и размер
+                сжатого архива.
+        """
         if not os.path.exists(path_in):
-            raise ValueError(f'No search file or dir [{path_in}]')
+            raise ValueError(f'Файл или директория [{path_in}] не найдены')
         elif not path_out:
-            raise ValueError(f'Is empty string [{path_out}]')
+            raise ValueError(f'Пустая строка в качестве пути [{path_out}]')
 
         total_size, all_files = self.get_directory_info(path_in)
 
@@ -35,7 +59,7 @@ class Compressor(ICompressor):
         archive_file_path = os.path.join(path_out, f'{name_dir}.huff')
 
         if os.path.exists(archive_file_path):
-            raise ValueError(f'Archive [{archive_file_path}] is exists')
+            raise ValueError(f'Архив [{archive_file_path}] уже существует')
 
         with open(archive_file_path, 'wb') as outfile:
             outfile.write(MAGIC_BYTES)
@@ -49,28 +73,47 @@ class Compressor(ICompressor):
                 if os.path.isdir(path_in):
                     self.compress_empty_dir(outfile, path_in, path_in)
                 else:
-                    self.compress_file(outfile, path_in, path_in, protected_files)
+                    self.compress_file(outfile,
+                                       path_in,
+                                       path_in,
+                                       protected_files)
             else:
                 for path, item_type in all_files.items():
                     if item_type == 'empty_directory':
                         self.compress_empty_dir(outfile, path, path_in)
                     elif item_type == 'file':
-                        self.compress_file(outfile, path, path_in, protected_files)
+                        self.compress_file(outfile, path,
+                                           path_in,
+                                           protected_files)
 
         return total_size, os.path.getsize(archive_file_path)
 
-    def _make_header(self, outfile):
+    def _make_header(self, outfile: BinaryIO) -> None:
+        """
+        Создает заголовок архива.
+
+        :param outfile: Выходной файл для записи.
+        """
         header = bytearray(32)
         header[0] = self.version
         supported_codec = {None: 0, 'utf-8': 1}
         if self.codec in supported_codec:
             header[1] = supported_codec[self.codec]
         else:
-            raise ValueError(f'Codec {self.codec} is not supported!')
+            raise ValueError(f'Кодек {self.codec} не поддерживается!')
         outfile.write(bytes(header))
 
     @staticmethod
-    def compress_empty_dir(outfile, file_path, path_in):
+    def compress_empty_dir(outfile: BinaryIO,
+                           file_path: str,
+                           path_in: str) -> None:
+        """
+        Сжимает пустую директорию.
+
+        :param outfile: Выходной файл для записи.
+        :param file_path: Путь к директории.
+        :param path_in: Исходный путь директории.
+        """
         relative_path = os.path.relpath(file_path, path_in)
         bytes_relative_path = relative_path.encode('utf-8')
 
@@ -86,21 +129,51 @@ class Compressor(ICompressor):
         bytes_hash = hasher.get_hash()
         outfile.write(bytes_hash)
 
-    def compress_file(self, outfile, file_path, path_in, protected_files):
+    def compress_file(self,
+                      outfile: BinaryIO,
+                      file_path: str,
+                      path_in: str,
+                      protected_files: Optional[Dict[str, bytes]]) -> None:
+        """
+        Сжимает файл.
+
+        :param outfile: Выходной файл для записи.
+        :param file_path: Путь к файлу.
+        :param path_in: Исходный путь файла.
+        :param protected_files: Зашифрованные файлы и пароли для них.
+        """
         hasher = MD5()
         tree = None
         pass_hash = None
         if protected_files and (file_path in protected_files):
             pass_hash = protected_files[file_path]
 
-        not_empty_file = self.write_header_file(outfile, file_path, path_in, hasher, pass_hash)
+        not_empty_file = self.write_header_file(outfile,
+                                                file_path,
+                                                path_in,
+                                                hasher,
+                                                pass_hash)
 
         if not_empty_file == b'\x01':
             tree = self.write_tree(outfile, file_path, hasher, pass_hash)
         self.write_data(outfile, file_path, hasher, tree)
 
     @staticmethod
-    def write_header_file(outfile, file_path, path_in, hasher, pass_hash=None):
+    def write_header_file(outfile: BinaryIO,
+                          file_path: str,
+                          path_in: str,
+                          hasher: MD5,
+                          pass_hash: Optional[bytes]) -> bytes:
+        """
+        Записывает заголовок файла в архив.
+
+        :param outfile: Выходной файл для записи.
+        :param file_path: Путь к файлу.
+        :param path_in: Исходный путь файла.
+        :param hasher: Объект для хеширования.
+        :param pass_hash: Пароль для зашифрованного файла.
+        :return: Флаг, указывающий на наличие данных в файле.
+        """
         relative_path = os.path.relpath(file_path, path_in)
         bytes_relative_path = relative_path.encode('utf-8')
 
@@ -126,7 +199,20 @@ class Compressor(ICompressor):
 
         return not_empty_file
 
-    def write_tree(self, outfile, file_path, hasher, pass_hash):
+    def write_tree(self,
+                   outfile: BinaryIO,
+                   file_path: str,
+                   hasher: MD5,
+                   pass_hash: Optional[bytes]) -> HuffmanTree:
+        """
+        Записывает дерево Хаффмана в архив.
+
+        :param outfile: Выходной файл для записи.
+        :param file_path: Путь к файлу.
+        :param hasher: Объект для хеширования.
+        :param pass_hash: Пароль для зашифрованного файла.
+        :return: Объект дерева Хаффмана.
+        """
         tree = self._generate_huffman_tree(file_path)
         serialized_tree = tree.serialize_to_string()
         hasher.hash(serialized_tree)
@@ -149,7 +235,13 @@ class Compressor(ICompressor):
 
         return tree
 
-    def _generate_huffman_tree(self, file_path):
+    def _generate_huffman_tree(self, file_path: str) -> HuffmanTree:
+        """
+        Генерирует дерево Хаффмана для файла.
+
+        :param file_path: Путь к файлу.
+        :return: Объект дерева Хаффмана.
+        """
         tree = HuffmanTree(self.codec)
 
         with open(file_path, self.open_mode) as file:
@@ -161,7 +253,19 @@ class Compressor(ICompressor):
         tree.build_tree()
         return tree
 
-    def write_data(self, outfile, file_path, hasher, tree=None):
+    def write_data(self,
+                   outfile: BinaryIO,
+                   file_path: str,
+                   hasher: MD5,
+                   tree: Optional[HuffmanTree]) -> None:
+        """
+        Записывает данные файла в архив.
+
+        :param outfile: Выходной файл для записи.
+        :param file_path: Путь к файлу.
+        :param hasher: Объект для хеширования.
+        :param tree: Объект дерева Хаффмана.
+        """
         if tree:
             codes = tree.get_codes()
 
@@ -195,7 +299,13 @@ class Compressor(ICompressor):
         outfile.write(hasher.get_hash())
 
     @staticmethod
-    def _bits_to_bytes(bits):
+    def _bits_to_bytes(bits: str) -> Tuple[str, bytes]:
+        """
+        Преобразует биты в байты.
+
+        :param bits: Строка с битами.
+        :return: Кортеж с оставшимися битами и байтами.
+        """
         bytes_list = []
 
         while len(bits) >= 8:
@@ -206,7 +316,13 @@ class Compressor(ICompressor):
         return bits, bytes(bytes_list)
 
     @staticmethod
-    def _adder_zero(bits):
+    def _adder_zero(bits: str) -> Tuple[bytes, bytes]:
+        """
+        Добавляет нули в конец битовой строки.
+
+        :param bits: Битовая строка.
+        :return: Кортеж с байтом и количеством добавленных нулей.
+        """
         count = (8 - (len(bits) % 8)) % 8
         bits += '0' * count
         byte = int(bits, 2).to_bytes(1, byteorder='big')
@@ -214,11 +330,20 @@ class Compressor(ICompressor):
         return byte, count_bits
 
     @staticmethod
-    def get_directory_info(path):
+    def get_directory_info(path: str) -> Tuple[int, Dict[str, str]]:
+        """
+        Возвращает информацию о размере и содержимом директории.
+
+        :param path: Путь к директории.
+        :return: Кортеж, содержащий общий размер файлов в директории и
+                словарь с информацией о каждом файле (путь к файлу: тип
+                файла).
+        """
+        total_size: int = 0
+        info_dict: Dict[str, str] = {}
+
         if os.path.isdir(path):
             stack = [path]
-            total_size = 0
-            info_dict = {}
 
             while stack:
                 current_path = stack.pop()
