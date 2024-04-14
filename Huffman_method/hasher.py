@@ -1,69 +1,55 @@
 import struct
+from typing import List
 
 
 class MD5:
     """
-    Реализация алгоритма хеширования MD5.
-
-    Атрибуты:
-        a (int): Начальное значение A.
-        b (int): Начальное значение B.
-        c (int): Начальное значение C.
-        d (int): Начальное значение D.
-        k (list): Список констант, используемых в алгоритме MD5.
-        s (list): Список сдвигов, используемых в алгоритме MD5.
-        data (bytes): Данные для хеширования.
+    Реализует алгоритм MD5 для хеширования данных.
     """
 
-    def __init__(self):
+    def __init__(self) -> None:
         """
-        Инициализирует экземпляр MD5 значениями по умолчанию.
+        Инициализирует объект класса MD5.
         """
-        self.a = 0x67452301
-        self.b = 0xEFCDAB89
-        self.c = 0x98BADCFE
-        self.d = 0x10325476
+        self.a: int = 0x67452301
+        self.b: int = 0xEFCDAB89
+        self.c: int = 0x98BADCFE
+        self.d: int = 0x10325476
 
-        self.k = [0x00000000] * 64
-        self.s = [0] * 64
+        self.k: List[int] = [0x00000000] * 64
+        self.s: List[int] = [0] * 64
 
         for i in range(64):
-            x = abs((2 ** 0.5 * abs((2 ** i) * (i + 1))) % 1)
+            x: float = abs((2 ** 0.5 * abs((2 ** i) * (i + 1))) % 1)
             self.k[i] = int(2 ** 32 * x)
             self.s[i] = (7 * i) % 32 if i < 32 else (3 * i + 5) % 32
 
-        self.data = b''
+        self.data: bytes = b''
 
     @staticmethod
-    def left_rotate(x, n):
+    def left_rotate(x: int, n: int) -> int:
         """
-        Выполняет циклический сдвиг влево для заданного значения.
+        Выполняет циклический сдвиг влево для 32-битового числа.
 
-        Args:
-            x (int): Значение для сдвига.
-            n (int): Количество бит для сдвига.
-
-        Returns:
-            int: Сдвинутое значение.
+        :param x: Число, для которого выполняется сдвиг.
+        :param n: Количество бит для сдвига.
+        :return: Результат сдвига.
         """
         return ((x << n) | (x >> (32 - n))) & 0xFFFFFFFF
 
     @staticmethod
-    def padding(message):
+    def padding(message: bytes) -> bytes:
         """
-        Применяет дополнение к входному сообщению.
+        Добавляет дополнение к сообщению согласно алгоритму MD5.
 
-        Args:
-            message (bytes): Входное сообщение.
-
-        Returns:
-            bytes: Сообщение с дополнением.
+        :param message: Сообщение для добавления дополнения.
+        :return: Сообщение с дополнением.
         """
         if not message:
             return b''
 
-        original_byte_len = len(message)
-        original_bit_len = original_byte_len * 8
+        original_byte_len: int = len(message)
+        original_bit_len: int = original_byte_len * 8
 
         message += b'\x80'
 
@@ -74,18 +60,21 @@ class MD5:
 
         return message
 
-    def process_chunk(self, chunk):
+    def process_chunk(self, chunk: bytes) -> None:
         """
-        Обрабатывает 64-байтный блок данных.
+        Обрабатывает отдельный блок данных согласно алгоритму MD5.
 
-        Args:
-            chunk (bytes): Входной блок данных.
+        :param chunk: Блок данных для обработки.
         """
-        a, b, c, d = self.a, self.b, self.c, self.d
+        a: int = self.a
+        b: int = self.b
+        c: int = self.c
+        d: int = self.d
+
         for i in range(64):
             if i < 16:
-                f = (b & c) | ((~b) & d)
-                g = i
+                f: int = (b & c) | ((~b) & d)
+                g: int = i
             elif i < 32:
                 f = (d & b) | ((~d) & c)
                 g = (5 * i + 1) % 16
@@ -96,42 +85,39 @@ class MD5:
                 f = c ^ (b | (~d))
                 g = (7 * i) % 16
 
-            temp = d
-            d = c
-            c = b
-            temp = a + f + self.k[i]
-            bytes = temp + struct.unpack('<I', chunk[g * 4:g * 4 + 4])[0]
-            b = (b + self.left_rotate(bytes, self.s[i])) & 0xFFFFFFFF
-            a = temp
+            d, c, a = c, b, self.a
+            temp: int = a + f + self.k[i]
+            bytes_: int = temp + struct.unpack('<I',
+                                               chunk[g * 4:g * 4 + 4])[0]
+            b = (b + self.left_rotate(bytes_, self.s[i])) & 0xFFFFFFFF
+            self.a = temp
 
         self.a = (self.a + a) & 0xFFFFFFFF
         self.b = (self.b + b) & 0xFFFFFFFF
         self.c = (self.c + c) & 0xFFFFFFFF
         self.d = (self.d + d) & 0xFFFFFFFF
 
-    def hash(self, data):
+    def hash(self, data: bytes) -> None:
         """
-        Хеширует данные.
+        Вычисляет хеш-значение для указанных данных.
 
-        Args:
-            data (bytes): Данные для хеширования.
+        :param data: Данные для хеширования.
         """
         self.data += data
         while len(self.data) >= 64:
-            chunk = self.data[:64]
-            chunk = self.padding(chunk)
+            chunk: bytes = self.data[:64]
+            chunk: bytes = self.padding(chunk)
             self.process_chunk(chunk)
             self.data = self.data[64:]
 
-    def get_hash(self):
+    def get_hash(self) -> bytes:
         """
-        Возвращает хеш.
+        Возвращает вычисленное 16 байтный хеш для переданных данных.
 
-        Returns:
-            bytes: Хеш-значение.
+        :return: Хеш.
         """
         if self.data:
-            chunk = self.padding(self.data)
+            chunk: bytes = self.padding(self.data)
             self.process_chunk(chunk)
             self.data = b''
         return struct.pack('<LLLL', self.a, self.b, self.c, self.d)

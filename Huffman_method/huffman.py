@@ -1,94 +1,70 @@
 import heapq
 from collections import Counter
 import pickle
+from typing import Dict, Tuple, Union, Optional
 
 
 class HuffmanNode:
     """
-    Класс, представляющий узел в дереве Хаффмана.
-
-    Args:
-        char (str): Символ, представленный текущим узлом.
-        freq (int): Частота символа.
-
-    Attributes:
-        left (HuffmanNode): Левый дочерний узел.
-        right (HuffmanNode): Правый дочерний узел.
+    Сущность узла в дереве Хаффмана.
     """
 
-    def __init__(self, char, freq):
+    def __init__(self, char: Optional[str], freq: int):
         """
-        Инициализирует узел в дереве Хаффмана.
+        Инициализирует объект класса HuffmanNode.
 
-        Args:
-            char (str): Символ, представленный текущим узлом.
-            freq (int): Частота символа.
+        :param char: Символ, связанный с узлом.
+        :param freq: Частота встречаемости символа.
         """
         self.char = char
         self.freq = freq
         self.left = None
         self.right = None
 
-    def __lt__(self, other):
+    def __lt__(self, other: 'HuffmanNode') -> bool:
         """
-        Сравнивает текущий узел с другим узлом по частоте.
+        Сравнивает два объекта HuffmanNode на основе их частот.
 
-        Args:
-            other (HuffmanNode): Другой узел для сравнения.
-
-        Returns:
-            bool: True, если частота текущего узла меньше,
-            чем у другого узла, иначе False.
+        :param other: Другой объект HuffmanNode для сравнения.
+        :return: True, если частота текущего узла меньше частоты другого,
+         иначе False.
         """
         return self.freq < other.freq
 
-    def is_leaf(self):
+    def is_leaf(self) -> bool:
         """
-        Проверяет, является ли текущий узел листом.
+        Проверяет, является ли узел листом.
 
-        Returns:
-            bool: True, если текущий узел лист, иначе False.
+        :return: True, если узел является листом, иначе False.
         """
         return self.left is None and self.right is None
 
 
 class HuffmanTree:
     """
-    Класс, представляющий дерево Хаффмана.
-
-    Attributes:
-        root (HuffmanNode): Корневой узел дерева.
-        frequency (Counter): Счетчик частот символов.
-        codec (any): Кодек для сериализации/десериализации дерева.
+    Сущность дерева кодирования Хаффмана.
     """
 
-    def __init__(self, codec=None):
+    def __init__(self, codec: Optional[str] = None):
         """
-        Инициализирует дерево Хаффмана.
+        Инициализирует объект класса HuffmanTree.
 
-        Args:
-            codec (str): Кодек для сериализации/десериализации
-             дерева. По умолчанию None.
+        :param codec: Кодек, используемый для декодирования. По умолчанию None.
         """
         self.root = None
         self.frequency = Counter()
         self.codec = codec
 
-    def _build_codes(self, node, prefix='', codes={}):
+    def _build_codes(self,
+                     node: HuffmanNode, prefix: str = '',
+                     codes: Dict[str, str] = {}) -> Dict[str, str]:
         """
-        Рекурсивно строит коды символов на основе дерева Хаффмана.
+        Рекурсивно строит коды Хаффмана для символов в дереве.
 
-        Args:
-            node (HuffmanNode): Текущий узел дерева.
-
-            prefix (str): Префикс для текущего пути.
-            По умолчанию ''.
-
-            codes (dict): Словарь кодов символов.
-            По умолчанию {}.
-
-        Returns:
-            dict: Словарь кодов символов.
+        :param node: Текущий узел, который обрабатывается.
+        :param prefix: Префиксный код, сгенерированный на данный момент.
+        :param codes: Словарь для хранения кодов Хаффмана.
+        :return: Словарь, содержащий коды Хаффмана для символов.
         """
         if node is not None:
             if node.char is not None:
@@ -97,13 +73,11 @@ class HuffmanTree:
             self._build_codes(node.right, prefix + '1', codes)
         return codes
 
-    def get_codes(self):
+    def get_codes(self) -> Dict[str, str]:
         """
-        Возвращает коды символов, построенные на основе дерева
-        Хаффмана.
+        Генерирует коды Хаффмана для всех символов в дереве.
 
-        Returns:
-            dict: Словарь кодов символов.
+        :return: Словарь, содержащий коды Хаффмана для символов.
         """
         if self.root is None:
             return {}
@@ -113,24 +87,20 @@ class HuffmanTree:
 
         return self._build_codes(self.root)
 
-    def decode(self, bit_sequence, count=-1):
+    def decode(self,
+               bit_sequence: str,
+               count: int = -1) -> Tuple[Union[bytes, str], str]:
         """
-        Декодирует битовую последовательность с использованием дерева
-        Хаффмана.
+        Декодирует последовательность битов с использованием дерева Хаффмана.
 
-        Args:
-            bit_sequence (str): Битовая последовательность
-            для декодирования.
-
-            count (int): Количество дополнительных битов,
-            которые следует проигнорировать.
-                По умолчанию -1.
-
-        Returns:
-            tuple: Декодированные данные и оставшиеся биты.
+        :param bit_sequence: Последовательность битов для декодирования.
+        :param count: Количество битов для декодирования. По умолчанию -1.
+        :return: Кортеж, содержащий декодированные данные и оставшиеся биты.
         """
         if self.root is None:
-            return
+            raise ValueError('Дерево Хаффмана пусто. '
+                             'невозможно декодировать данные')
+
         current_node = self.root
 
         if count >= 1:
@@ -140,10 +110,10 @@ class HuffmanTree:
             decoded_data = bytearray()
         else:
             decoded_data = []
+
         remaining_bits = ''
 
         for bit_str in bit_sequence:
-
             remaining_bits += bit_str
 
             if bit_str == '0':
@@ -163,20 +133,19 @@ class HuffmanTree:
 
         return decoded_data, remaining_bits
 
-    def add_block(self, block):
+    def add_block(self, block: str) -> None:
         """
-        Обновляет частоты символов на основе переданного блока.
+        Добавляет блок данных в счетчик частот.
 
-        Args:
-            block (str): Блок данных для обновления частот.
+        :param block: Блок данных для добавления.
         """
         if not block:
             return
         self.frequency.update(block)
 
-    def build_tree(self):
+    def build_tree(self) -> None:
         """
-        Строит дерево Хаффмана на основе частот символов.
+        Строит дерево Хаффмана на основе счетчика частот.
         """
         if len(self.frequency) == 1:
             char, freq = next(iter(self.frequency.items()))
@@ -198,33 +167,28 @@ class HuffmanTree:
 
             self.root = priority_queue[0]
 
-    def serialize_to_string(self):
+    def serialize_to_string(self) -> bytes:
         """
-        Сериализует дерево Хаффмана в строку.
+        Сериализует дерево Хаффмана в строку с использованием pickle.
 
-        Returns:
-            bytes: Сериализованное представление дерева Хаффмана.
+        :return: Сериализованное дерево в виде строки.
         """
         return pickle.dumps(self)
 
-    def deserialize_from_string(self, serialized_tree_string):
+    def deserialize_from_string(self, serialized_tree_string: bytes) -> None:
         """
-        Десериализует дерево Хаффмана из строки.
+        Десериализует строку для восстановления дерева Хаффмана.
 
-        Args:
-            serialized_tree_string (bytes): Строка, содержащая
-            сериализованное представление дерева Хаффмана.
+        :param serialized_tree_string: Сериализованная строка дерева.
         """
         deserialized_tree = pickle.loads(serialized_tree_string)
         self.root = deserialized_tree.root
         self.codec = deserialized_tree.codec
 
-    def get_codec(self):
+    def get_codec(self) -> Optional[str]:
         """
-        Возвращает кодек, используемый для сериализации/десериализации
-        дерева.
+        Возвращает кодек, используемый для кодирования и декодирования.
 
-        Returns:
-            any: Кодек для сериализации/десериализации дерева.
+        :return: Кодек, используемый для кодирования и декодирования.
         """
         return self.codec

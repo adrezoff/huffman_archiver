@@ -1,7 +1,25 @@
-MAGIC_BYTES = b'\x48\x75\x66\x7F'
+MAGIC_BYTES: bytes = b'\x48\x75\x66\x7F'
+"""
+Магические байты, используемые для определения формата архива.
+"""
 
-AUTH_BYTES = b'\x92\xCA\xF1\xD8\x44\xCD\xCF\xA0\xF8\xC4\xE5\x42\xC1\x14\xF2\xB7'
+AUTH_BYTES: bytes = (b'\x92\xCA\xF1\xD8\x44\xCD\xCF\xA0'
+                     b'\xF8\xC4\xE5\x42\xC1\x14\xF2\xB7')
+"""
+Байты, используемые для проверки подлинности архива.
+"""
 
-END_PATH = b'\x1A\xD0\xC4\xD2'
-END_TREE = b'\x5C\x4B\x1A\xF0'
-END_DATA = b'\x8F\xE2\xB3\x41'
+END_PATH: bytes = b'\x1A\xD0\xC4\xD2'
+"""
+Байты, обозначающие окончание блока пути в архиве.
+"""
+
+END_TREE: bytes = b'\x5C\x4B\x1A\xF0'
+"""
+Байты, обозначающие окончание блока структуры дерева каталогов в архиве.
+"""
+
+END_DATA: bytes = b'\x8F\xE2\xB3\x41'
+"""
+Байты, обозначающие окончание блока данных в архиве.
+"""

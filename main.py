@@ -7,29 +7,12 @@ from Huffman_method import Decompressor, Compressor
 
 
 def calculate_percentage(size_path_in, size_archive):
-    """
-    Вычисляет процент сжатия.
-    Args:
-        size_path_in (int): Размер исходных данных.
-        size_archive (int): Размер архива.
-
-    Returns:
-        int: Процент сжатия в диапазоне [0,100).
-    """
     if size_path_in == 0:
-        return 0  # Избегаем деления на ноль
+        return 0
     return ((size_path_in - size_archive) / size_path_in) * 100
 
 
-def set_password(dir):
-    """
-    Вычисляет процент сжатия.
-    Args:
-        dir (str): Путь к директории.
-
-    Returns:
-        dict: Cловарь хешей паролей, для каждого пути.
-    """
+def set_password(directory):
     passwords = {}
     while True:
         if dir in passwords:
@@ -53,7 +36,7 @@ def set_password(dir):
             continue
 
         absolute_path_path = os.path.abspath(path)
-        absolute_path_dir = os.path.abspath(dir)
+        absolute_path_dir = os.path.abspath(directory)
 
         file_stat = os.stat(absolute_path_path)
         dir_stat = os.stat(absolute_path_dir)
@@ -67,15 +50,19 @@ def set_password(dir):
             try:
                 password = getpass.getpass()
             except UnicodeDecodeError:
-                password = getpass.getpass(prompt="Enter password:", stream=None, encoding='latin1')
-
+                password = getpass.getpass(
+                    prompt="Enter password:",
+                    stream=None
+                )
             while True:
                 print('Введите пароль еще раз:')
                 try:
                     password_accept = getpass.getpass()
                 except UnicodeDecodeError:
-                    password_accept = getpass.getpass(prompt="Enter password:", stream=None, encoding='latin1')
-
+                    password_accept = getpass.getpass(
+                        prompt="Enter password:",
+                        stream=None
+                    )
                 if not password_accept:
                     break
                 if password == password_accept:
@@ -85,6 +72,15 @@ def set_password(dir):
                 print('Ошибка. Пароли не совпадают')
         else:
             print('Ошибка. Файл не принадлежит указанной директории.')
+
+
+def format_size(size_bytes):
+    size_units = ['B', 'KiB', 'MiB', 'GiB', 'TiB', 'PiB', 'EiB', 'ZiB', 'YiB']
+    i = 0
+    while size_bytes >= 1024 and i < len(size_units) - 1:
+        size_bytes /= 1024.0
+        i += 1
+    return "{:.2f} {}".format(size_bytes, size_units[i])
 
 
 def main():
@@ -130,15 +126,19 @@ def main():
     if args.compress:
         method = '-b' if args.bin else '-t'
         compressor = Compressor() if method == '-b' else Compressor('utf-8')
-        input = args.input_path
+        _input = args.input_path
         output = args.output_path
         protected_files = None
         if args.protect:
-            protected_files = set_password(input)
+            protected_files = set_password(_input)
         time1 = time.time()
 
         try:
-            size_path, size_arch = compressor.compress(input, output, protected_files)
+            size_path, size_arch = compressor.compress(
+                _input,
+                output,
+                protected_files
+            )
         except ValueError as e:
             print(f'\n{e.args[0]}')
             return
@@ -147,7 +147,7 @@ def main():
         percents = calculate_percentage(size_path, size_arch)
 
         print(f'\nCompress time: {round(time2 - time1, 2)} sec.')
-        print(f'Difference size: {size_path - size_arch} bytes')
+        print(f'Difference size: {format_size(size_path - size_arch)}')
         print(f'Percents compress: {round(percents, 2)} %')
 
     elif args.decompress:
@@ -156,6 +156,9 @@ def main():
         if decompressor.decompress(args.input_path, args.output_path):
             time2 = time.time()
             print(f'\nDecompress time: {time2 - time1} sec.')
+            print('Successful finished')
+        else:
+            print('Unsuccessful finished')
 
 
 if __name__ == "__main__":

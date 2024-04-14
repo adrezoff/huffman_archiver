@@ -67,7 +67,7 @@ class Decompressor(IDecompressor):
         flag_codec = header[1]
 
         supported_codec = [None, 'utf-8']
-        if 0 <= flag_codec < len(supported_codec) - 1:
+        if 0 <= flag_codec < len(supported_codec):
             self.codec = supported_codec[flag_codec]
 
             if self.codec is None:
@@ -88,7 +88,7 @@ class Decompressor(IDecompressor):
 
     def __decompress(self, file):
         file_is_not_empty = file.read(1)
-        self.progress_bar.update(len(file_is_not_empty))
+        self.progress_bar.update(1)
         try:
             if file_is_not_empty == b'\x00':
                 self.decompress_empty_file(file)
@@ -98,29 +98,6 @@ class Decompressor(IDecompressor):
                 raise ValueError(f'Invalid file type')
         except ValueError as e:
             raise e
-
-    @staticmethod
-    def authentication(path, auth_bytes):
-        print(f'\nВведите пароль от файла {path} '
-              '(или пустую строку чтобы пропустить файл):')
-
-        for i in range(3):
-            password = getpass.getpass()
-            if not password:
-                print(f'\nВы пропустили файл {path}')
-                return False, None
-
-            hasher = MD5()
-            hasher.hash(password.encode())
-            hash_pass = hasher.get_hash()
-            if AUTH_BYTES == aes_decrypt(auth_bytes, hash_pass):
-                return True, hash_pass
-            else:
-                print(f'Не верный пароль. Осталось {2 - i} попытка(-ки)')
-                continue
-
-        print(f'Попытки закончились. Файл автоматически пропускается.')
-        return False, None
 
     def decompress_empty_file(self, file):
         level_protect = file.read(1)
@@ -178,77 +155,6 @@ class Decompressor(IDecompressor):
         except ValueError as e:
             raise e
 
-    def read_data(self, file, tree, hasher, out_file, buffer):
-        dir_path = os.path.dirname(out_file)
-        os.makedirs(dir_path, exist_ok=True)
-        bits = ''
-        with open(out_file, self.open_mode) as outfile:
-            end_data = buffer.find(END_DATA)
-            if end_data < 0:
-                for block in iter(lambda: file.read(self.block_size), b''):
-                    self.progress_bar.update(len(block))
-                    if not block:
-                        raise ValueError(f'File is damaged..')
-                    buffer += block
-                    end_data = buffer.find(END_DATA)
-                    if end_data >= 0:
-                        buffer, bits = self.decoded_block(outfile, bits, buffer, end_data, tree, hasher)
-                        return buffer
-            else:
-                buffer, bits = self.decoded_block(outfile, bits, buffer, end_data, tree, hasher)
-        return buffer
-
-    def decoded_block(self, outfile, bits, buffer, end_data, tree, hasher):
-        if end_data >= 0:
-            encoded_data = buffer[:end_data-1]
-            last_byte = buffer[end_data-1]
-            count = last_byte
-            buffer = buffer[end_data + 4:]
-        else:
-            encoded_data = buffer
-            count = -1
-            buffer = b''
-        bits += self._bytes_to_bits(encoded_data)
-
-        decoded_data, bits = tree.decode(bits, count)
-        outfile.write(decoded_data)
-        hasher.hash(decoded_data)
-
-        return buffer, bits
-
-    def get_tree(self, file, hasher, hash_pass=None, buffer=b''):
-        end_tree = buffer.find(END_TREE)
-
-        if end_tree >= 0:
-            serialized_tree, buffer = buffer[:end_tree], buffer[end_tree:]
-            if len(buffer) < 4:
-                self.progress_bar.update(4 - len(buffer))
-                buffer += file.read(4 - len(buffer))
-            buffer = buffer[len(END_TREE):]
-        else:
-            serialized_tree = buffer
-            for block in iter(lambda: file.read(self.block_size), b''):
-                if not block:
-                    raise ValueError(f'File is damaged.')
-
-                self.progress_bar.update(len(block))
-
-                end_tree_block = block.find(END_TREE)
-                if end_tree_block >= 0:
-                    serialized_tree += block[:end_tree_block]
-                    buffer = block[end_tree_block + 4:]
-                    break
-                serialized_tree += block
-
-        if hash_pass:
-            tree = self.get_protected_tree(serialized_tree, hash_pass, hasher)
-        else:
-            hasher.hash(serialized_tree)
-            tree = HuffmanTree()
-            tree.deserialize_from_string(serialized_tree)
-
-        return tree, buffer
-
     def decompress_empty_dir(self, file):
         hasher = MD5()
 
@@ -293,6 +199,39 @@ class Decompressor(IDecompressor):
 
             return out_dir, buffer[end_path + len(END_PATH):]
 
+    def get_tree(self, file, hasher, hash_pass=None, buffer=b''):
+        end_tree = buffer.find(END_TREE)
+
+        if end_tree >= 0:
+            serialized_tree, buffer = buffer[:end_tree], buffer[end_tree:]
+            if len(buffer) < 4:
+                self.progress_bar.update(4 - len(buffer))
+                buffer += file.read(4 - len(buffer))
+            buffer = buffer[len(END_TREE):]
+        else:
+            serialized_tree = buffer
+            for block in iter(lambda: file.read(self.block_size), b''):
+                if not block:
+                    raise ValueError(f'File is damaged.')
+
+                self.progress_bar.update(len(block))
+
+                end_tree_block = block.find(END_TREE)
+                if end_tree_block >= 0:
+                    serialized_tree += block[:end_tree_block]
+                    buffer = block[end_tree_block + 4:]
+                    break
+                serialized_tree += block
+
+        if hash_pass:
+            tree = self.get_protected_tree(serialized_tree, hash_pass, hasher)
+        else:
+            hasher.hash(serialized_tree)
+            tree = HuffmanTree()
+            tree.deserialize_from_string(serialized_tree)
+
+        return tree, buffer
+
     @staticmethod
     def get_protected_tree(serialized_tree, hash_pass, hasher):
         count = int.from_bytes(serialized_tree[-1:], byteorder='big')
@@ -307,10 +246,52 @@ class Decompressor(IDecompressor):
         tree.deserialize_from_string(decoded_tree)
         return tree
 
+    def read_data(self, file, tree, hasher, out_file, buffer):
+        dir_path = os.path.dirname(out_file)
+        os.makedirs(dir_path, exist_ok=True)
+        bits = ''
+        with open(out_file, self.open_mode) as outfile:
+            end_data = buffer.find(END_DATA)
+            if end_data < 0:
+                buffer, bits = self.decoded_block(outfile, bits, buffer, end_data, tree, hasher)
+                for block in iter(lambda: file.read(self.block_size), b''):
+                    if not block:
+                        raise ValueError(f'File is damaged..')
+                    self.progress_bar.update(len(block))
+                    buffer = buffer[-3:] + block
+                    end_data = buffer.find(END_DATA)
+                    buffer, bits = self.decoded_block(outfile, bits, buffer, end_data, tree, hasher)
+                    if end_data >= 0:
+                        return buffer
+            else:
+                buffer, bits = self.decoded_block(outfile, bits, buffer, end_data, tree, hasher)
+        return buffer
+
+    def decoded_block(self, outfile, bits, buffer, end_data, tree, hasher):
+        if end_data >= 0:
+            encoded_data = buffer[:end_data-1]
+            last_byte = buffer[end_data-1]
+            count = last_byte
+            buffer = buffer[end_data + 4:]
+        else:
+            encoded_data = buffer[:-3]
+            count = -1
+            buffer = buffer[-3:]
+        bits += self._bytes_to_bits(encoded_data)
+
+        decoded_data, bits = tree.decode(bits, count)
+        outfile.write(decoded_data)
+
+        if self.codec is None:
+            hasher.hash(decoded_data)
+        else:
+            hasher.hash(decoded_data.encode(self.codec))
+
+        return buffer, bits
+
     def check_hash(self, file, hasher, out_path, buffer=b''):
         if len(buffer) < 16:
             chunk = file.read(16 - len(buffer))
-            self.progress_bar.update(len(chunk))
             buffer += chunk
 
         _hash_file = hasher.get_hash()
@@ -322,29 +303,51 @@ class Decompressor(IDecompressor):
 
         pointer = file.tell()
         file.seek(pointer-len(buffer))
+        self.progress_bar.update_with_point(file.tell())
         return
 
     def skip_file(self, file, buffer=b''):
-        pointer = file.tell() - len(buffer)
-        self.progress_bar.update(-len(buffer))
+        pointer = file.tell()
 
         end_data = buffer.find(END_DATA)
         if end_data >= 0:
-            file.seek(pointer + end_data + len(END_DATA) + 16)
+            file.seek(pointer - len(buffer) + end_data + len(END_DATA) + 16)
+            self.progress_bar.update_with_point(file.tell())
             return
 
         for block in iter(lambda: file.read(self.block_size), b''):
             if not block:
-                raise ValueError(f'Archive is damaged.[not search end data]')
-
-            end_data = block.find(END_DATA)
+                raise ValueError(f'Archive is damaged.[not search end data file]')
+            pointer = file.tell()
+            buffer = buffer[-3:] + block
+            end_data = buffer.find(END_DATA)
             if end_data >= 0:
-                buffer += block[:end_data + len(END_DATA)]
-                file.seek(pointer + len(buffer) + 16)
-
+                file.seek(pointer - len(buffer) + end_data + len(END_DATA) + 16)
+                self.progress_bar.update_with_point(file.tell())
                 return
 
-            buffer += block
+    @staticmethod
+    def authentication(path, auth_bytes):
+        print(f'\nВведите пароль от файла {path} '
+              '(или пустую строку чтобы пропустить файл):')
+
+        for i in range(3):
+            password = getpass.getpass()
+            if not password:
+                print(f'\nВы пропустили файл {path}')
+                return False, None
+
+            hasher = MD5()
+            hasher.hash(password.encode())
+            hash_pass = hasher.get_hash()
+            if AUTH_BYTES == aes_decrypt(auth_bytes, hash_pass):
+                return True, hash_pass
+            else:
+                print(f'Не верный пароль. Осталось {2 - i} попытка(-ки)')
+                continue
+
+        print(f'Попытки закончились. Файл автоматически пропускается.')
+        return False, None
 
     @staticmethod
     def get_pass_hash(name):

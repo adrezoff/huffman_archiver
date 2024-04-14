@@ -192,8 +192,6 @@ class Compressor(ICompressor):
                     outfile.write(bytes([0]))
 
         outfile.write(END_DATA)
-        print(hasher.get_hash())
-
         outfile.write(hasher.get_hash())
 
     @staticmethod
