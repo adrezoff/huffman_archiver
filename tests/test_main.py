@@ -9,8 +9,8 @@ import tempfile
 class TestMain(unittest.TestCase):
     def setUp(self):
         self.temp_dir = tempfile.TemporaryDirectory()
-        self.input_path = os.path.join(self.temp_dir.name, 'input.txt')
-        self.output_path = os.path.join(self.temp_dir.name, 'input.txt.huff')
+        self.input_path = os.path.join(self.temp_dir.name, 'input.bin')
+        self.output_path = os.path.join(self.temp_dir.name, 'input.bin.huff')
         with open(self.input_path, 'w') as f:
             f.write('test data for compression')
 

@@ -1,20 +1,15 @@
 import os
+
+from Huffman_method.coding import aes_encrypt
 from Huffman_method.huffman import HuffmanTree
-from Interfaces.compress import CompressorABC
+from Interfaces.compress import ICompressor
 from Huffman_method.const_byte import *
-from Huffman_method.progress_bar import progress_bar
+from Huffman_method.progress_bar import ProgressBar
+from Huffman_method.hasher import MD5
 
 
-class Compressor(CompressorABC):
-    """Класс для сжатия файлов методом Хаффмана."""
-
+class Compressor(ICompressor):
     def __init__(self, codec=None, block_size=128):
-        """Инициализация объекта сжатия.
-
-        Args:
-            codec (str): Кодировка для чтения файлов. По умолчанию None.
-            block_size (int): Размер блока для чтения файла. По умолчанию 128.
-        """
         self.block_size = block_size
         self.version = 2
         self.codec = codec
@@ -23,133 +18,142 @@ class Compressor(CompressorABC):
             self.open_mode = 'rb'
         else:
             self.open_mode = 'r'
-        self.progress_size = 0
-        self.size_path_in = 0
+        self.progress_bar = ProgressBar()
 
-    def compress(self, path_in, path_out):
-        """Сжимает файлы по указанному пути и записывает сжатые
-        данные в новый архив.
+    def compress(self, path_in, path_out, protected_files=None):
+        if not os.path.exists(path_in):
+            raise ValueError(f'No search file or dir [{path_in}]')
+        elif not path_out:
+            raise ValueError(f'Is empty string [{path_out}]')
 
-        Args:
-            path_in (str): Путь к файлу или директории для сжатия.
-            path_out (str): Путь, по которому будет сохранен архив.
+        total_size, all_files = self.get_directory_info(path_in)
 
-        Returns:
-            int: Разница в размере между исходными данными и сжатыми данными.
-        """
-        self.size_path_in = self.get_size(path_in)
-        self.progress_size = 0
-        if self.size_path_in:
-            progress_bar(0, self.size_path_in)
+        self.progress_bar.reset(total_size)
 
         os.makedirs(path_out, exist_ok=True)
-        name_dir = os.path.basename(path_in)
+        name_dir = os.path.basename(os.path.normpath(path_in))
         archive_file_path = os.path.join(path_out, f'{name_dir}.huff')
+
+        if os.path.exists(archive_file_path):
+            raise ValueError(f'Archive [{archive_file_path}] is exists')
 
         with open(archive_file_path, 'wb') as outfile:
             outfile.write(MAGIC_BYTES)
-            self._make_header(outfile)
 
-            if self._is_file(path_in):
-                self._compress_file(outfile, path_in, path_in)
+            try:
+                self._make_header(outfile)
+            except ValueError as e:
+                raise e
 
-                self.progress_size += self.get_size(path_in)
-                progress_bar(self.progress_size, self.size_path_in)
+            if not all_files:
+                if os.path.isdir(path_in):
+                    self.compress_empty_dir(outfile, path_in, path_in)
+                else:
+                    self.compress_file(outfile, path_in, path_in, protected_files)
             else:
-                for root, dirs, files in os.walk(path_in):
-                    relative_dir = os.path.relpath(root, path_in)
-                    if self.codec is None:
-                        relative_dir = relative_dir.encode('utf-8')
+                for path, item_type in all_files.items():
+                    if item_type == 'empty_directory':
+                        self.compress_empty_dir(outfile, path, path_in)
+                    elif item_type == 'file':
+                        self.compress_file(outfile, path, path_in, protected_files)
 
-                    if not dirs and not files:
-                        self._compress_empty_dir(outfile, relative_dir)
-                        continue
-
-                    for filename in files:
-                        if filename == '.DS_Store':
-                            continue
-
-                        file_path = os.path.join(root, filename)
-                        self._compress_file(outfile, file_path, path_in)
-
-        size_archive = self.get_size(archive_file_path)
-        return self.size_path_in, size_archive
-
-    def _compress_file(self, outfile, file_path, main_dir):
-        """Сжимает файл и записывает его в архив.
-
-        Args:
-            outfile (file object): Объект файла для записи сжатых данных.
-            file_path (str): Путь к файлу для сжатия.
-            main_dir (str): Главная директория.
-        """
-        if file_path != main_dir:
-            relative_path = os.path.relpath(file_path, main_dir)
-            if self.codec is None:
-                relative_path = relative_path.encode('utf-8')
-        else:
-            relative_path = ''
-
-        tree = self._generate_huffman_tree(file_path, relative_path)
-        codes = tree.get_codes()
-        serialized_tree = tree.serialize_to_string()
-        outfile.write(serialized_tree)
-        outfile.write(MAGIC_COOKIE_TREE)
-
-        self._write_directory(outfile, relative_path, codes)
-
-        with open(file_path, self.open_mode) as file:
-            buffer = ''
-            while True:
-                block = file.read(self.block_size)
-                if not block:
-                    break
-                self.progress_size += len(block)
-                buffer += ''.join([codes[obj] for obj in block])
-
-                progress_bar(self.progress_size, self.size_path_in)
-
-                buffer, compressed_block = self._bits_to_bytes(buffer)
-                outfile.write(compressed_block)
-
-            if buffer:
-                byte, byte_count = self._adder_zero(buffer)
-                outfile.write(byte)
-                outfile.write(byte_count)
-            else:
-                outfile.write((0).to_bytes(1, byteorder='big'))
-
-        outfile.write(MAGIC_COOKIE_DATA)
+        return total_size, os.path.getsize(archive_file_path)
 
     def _make_header(self, outfile):
-        """Создает заголовок архива.
-
-        Args:
-            outfile (file object): Объект файла для записи архива.
-        """
         header = bytearray(32)
         header[0] = self.version
+        supported_codec = {None: 0, 'utf-8': 1}
+        if self.codec in supported_codec:
+            header[1] = supported_codec[self.codec]
+        else:
+            raise ValueError(f'Codec {self.codec} is not supported!')
         outfile.write(bytes(header))
 
-    def _generate_huffman_tree(self, file_path, relative_path):
-        """Генерирует дерево Хаффмана для сжатия файла.
+    @staticmethod
+    def compress_empty_dir(outfile, file_path, path_in):
+        relative_path = os.path.relpath(file_path, path_in)
+        bytes_relative_path = relative_path.encode('utf-8')
 
-        Args:
-            file_path (str): Путь к файлу для сжатия.
-            relative_path (str): Относительный путь к файлу.
+        hasher = MD5()
 
-        Returns:
-            HuffmanTree: Дерево Хаффмана.
-        """
-        if self.codec is None:
-            tree = HuffmanTree()
+        outfile.write(b'\x00'*3)
+
+        outfile.write(bytes_relative_path)
+        hasher.hash(bytes_relative_path)
+        outfile.write(END_PATH)
+        outfile.write(END_DATA)
+
+        bytes_hash = hasher.get_hash()
+        outfile.write(bytes_hash)
+
+    def compress_file(self, outfile, file_path, path_in, protected_files):
+        hasher = MD5()
+        tree = None
+        pass_hash = None
+        if protected_files and (file_path in protected_files):
+            pass_hash = protected_files[file_path]
+
+        not_empty_file = self.write_header_file(outfile, file_path, path_in, hasher, pass_hash)
+
+        if not_empty_file == b'\x01':
+            tree = self.write_tree(outfile, file_path, hasher, pass_hash)
+        self.write_data(outfile, file_path, hasher, tree)
+
+    @staticmethod
+    def write_header_file(outfile, file_path, path_in, hasher, pass_hash=None):
+        relative_path = os.path.relpath(file_path, path_in)
+        bytes_relative_path = relative_path.encode('utf-8')
+
+        outfile.write(b'\x01')
+
+        not_empty_file = b'\x01'
+
+        if os.path.getsize(file_path) == 0:
+            not_empty_file = b'\x00'
+
+        outfile.write(not_empty_file)
+
+        if pass_hash:
+            outfile.write(b'\x01')
+            auth_bytes = aes_encrypt(AUTH_BYTES, pass_hash)
+            outfile.write(auth_bytes)
         else:
-            tree = HuffmanTree(self.codec)
+            outfile.write(b'\x00')
 
-        tree.add_block(relative_path)
+        outfile.write(bytes_relative_path)
+        hasher.hash(bytes_relative_path)
+        outfile.write(END_PATH)
+
+        return not_empty_file
+
+    def write_tree(self, outfile, file_path, hasher, pass_hash):
+        tree = self._generate_huffman_tree(file_path)
+        serialized_tree = tree.serialize_to_string()
+        hasher.hash(serialized_tree)
+
+        if pass_hash:
+            while len(serialized_tree) >= 16:
+                block = serialized_tree[:16]
+                serialized_tree = serialized_tree[16:]
+                outfile.write(aes_encrypt(block, pass_hash))
+
+            count = 16 - len(serialized_tree)
+            added_bytes = serialized_tree + (b'\x00' * count)
+            outfile.write(aes_encrypt(added_bytes, pass_hash))
+
+            outfile.write(count.to_bytes(1, byteorder='big'))
+        else:
+            outfile.write(serialized_tree)
+
+        outfile.write(END_TREE)
+
+        return tree
+
+    def _generate_huffman_tree(self, file_path):
+        tree = HuffmanTree(self.codec)
+
         with open(file_path, self.open_mode) as file:
-            while True:
-                block = file.read(self.block_size)
+            for block in iter(lambda: file.read(self.block_size), b''):
                 if not block:
                     break
                 tree.add_block(block)
@@ -157,16 +161,43 @@ class Compressor(CompressorABC):
         tree.build_tree()
         return tree
 
+    def write_data(self, outfile, file_path, hasher, tree=None):
+        if tree:
+            codes = tree.get_codes()
+
+            with open(file_path, self.open_mode) as file:
+                buffer = ''
+                for block in iter(lambda: file.read(self.block_size), b''):
+                    if not block:
+                        break
+
+                    if self.open_mode == 'rb':
+                        hasher.hash(block)
+                    else:
+                        hasher.hash(block.encode())
+
+                    if tree:
+                        buffer += ''.join([codes[obj] for obj in block])
+
+                    buffer, compressed_block = self._bits_to_bytes(buffer)
+                    outfile.write(compressed_block)
+
+                    self.progress_bar.update(len(block))
+
+                if buffer:
+                    byte, byte_count = self._adder_zero(buffer)
+                    outfile.write(byte)
+                    outfile.write(byte_count)
+                else:
+                    outfile.write(bytes([0]))
+
+        outfile.write(END_DATA)
+        print(hasher.get_hash())
+
+        outfile.write(hasher.get_hash())
+
     @staticmethod
     def _bits_to_bytes(bits):
-        """Конвертирует биты в байты.
-
-        Args:
-            bits (str): Последовательность битов.
-
-        Returns:
-            tuple: Кортеж с оставшимися битами и байтами, полученными из битов.
-        """
         bytes_list = []
 
         while len(bits) >= 8:
@@ -178,103 +209,37 @@ class Compressor(CompressorABC):
 
     @staticmethod
     def _adder_zero(bits):
-        """Добавляет недостающие нули к последовательности битов и
-        конвертирует ее в байты.
-
-        Args:
-            bits (str): Последовательность битов.
-
-        Returns:
-            tuple: Кортеж с байтами, полученными из битов с добавленными
-            нулями, и байтом с количеством добавленных нулей.
-        """
         count = (8 - (len(bits) % 8)) % 8
         bits += '0' * count
         byte = int(bits, 2).to_bytes(1, byteorder='big')
         count_bits = count.to_bytes(1, byteorder='big')
         return byte, count_bits
 
-    def _write_directory(self, outfile, relative_dir, codes):
-        """
-        Записывает директорию в архив.
-
-        Args:
-            outfile (file object): Объект файла для записи архива.
-            relative_dir (str): Относительный путь к директории.
-            codes (dict): Словарь кодов символов.
-        """
-        bits_relative_dir = ''.join([codes[obj] for obj in relative_dir])
-
-        _bits, _bytes = self._bits_to_bytes(bits_relative_dir)
-        outfile.write(_bytes)
-
-        if _bits:
-            byte_with_zero, count_zero = self._adder_zero(_bits)
-            outfile.write(byte_with_zero)
-            outfile.write(count_zero)
-        else:
-            outfile.write(int(0).to_bytes(1, byteorder='big'))
-
-        outfile.write(MAGIC_COOKIE_DIR)
-
-    def _compress_empty_dir(self, outfile, relative_dir):
-        """
-        Сжимает пустую директорию и записывает ее в архив.
-
-        Args:
-            outfile (file object): Объект файла для записи архива.
-            relative_dir (str): Относительный путь к директории.
-        """
-        tree = HuffmanTree()
-        tree.add_block(relative_dir)
-        tree.build_tree()
-
-        serialized_tree = tree.serialize_to_string()
-        outfile.write(serialized_tree)
-        outfile.write(MAGIC_COOKIE_TREE)
-
-        codes = tree.get_codes()
-
-        self._write_directory(outfile, relative_dir, codes)
-        outfile.write(MAGIC_COOKIE_DATA)
-
     @staticmethod
-    def _is_file(path):
-        """
-        Проверяет, является ли путь файлом.
-
-        Args:
-            path (str): Путь к файлу.
-
-        Returns:
-            bool: True, если путь указывает на файл, False в противном случае.
-        """
-        _, extension = os.path.splitext(path)
-        if extension:
-            return True
-        else:
-            return False
-
-    def get_size(self, path):
-        """
-        Получает размер, файла или директории по заданному пути.
-
-        Args:
-            path (str): Путь.
-
-        Returns:
-            int: Размер в байтах.
-        """
-        if self._is_file(path):
-            return os.path.getsize(path)
-        elif os.path.isdir(path):
+    def get_directory_info(path):
+        if os.path.isdir(path):
+            stack = [path]
             total_size = 0
-            for dirpath, _, filenames in os.walk(path):
-                for filename in filenames:
-                    if filename == '.DS_Store':
-                        continue
-                    filepath = os.path.join(dirpath, filename)
-                    total_size += os.path.getsize(filepath)
-            return total_size
+            info_dict = {}
+
+            while stack:
+                current_path = stack.pop()
+
+                contents = os.listdir(current_path)
+                if len(contents) == 1 and contents[0] == '.DS_Store':
+                    info_dict[current_path] = "empty_directory"
+                else:
+                    for item in contents:
+                        item_path = os.path.join(current_path, item)
+
+                        if os.path.isfile(item_path):
+                            if item != '.DS_Store':
+                                info_dict[item_path] = "file"
+                                total_size += os.path.getsize(item_path)
+                        elif os.path.isdir(item_path):
+                            stack.append(item_path)
+            return total_size, info_dict
+        elif os.path.isfile(path):
+            return os.path.getsize(path), {path: "file"}
         else:
-            return None
+            return 0, {}

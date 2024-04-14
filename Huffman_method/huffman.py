@@ -133,8 +133,8 @@ class HuffmanTree:
             return
         current_node = self.root
 
-        if count >= 0:
-            bit_sequence = bit_sequence[:-(8 + count)]
+        if count >= 1:
+            bit_sequence = bit_sequence[:-count]
 
         if self.codec is None:
             decoded_data = bytearray()

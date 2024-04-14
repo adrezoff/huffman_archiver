@@ -21,10 +21,10 @@ class TestDecompressor(unittest.TestCase):
 
     def test_decompress(self):
         compress = Compressor('utf-8')
-        archive_file = os.path.join(self.test_dir.name, 'test.bin.huff')
         compress.compress(self.test_file, self.test_dir.name)
         decompressor = Decompressor()
         output_dir = os.path.join(self.test_dir.name, 'decompressed')
+        archive_file = os.path.join(self.test_dir.name, 'test.bin.huff')
         decompressor.decompress(archive_file, output_dir)
         result = 'iefrhofkwdw[eofhwe[' * 100
         with open(output_dir + '/test.bin', 'r') as file:
@@ -34,9 +34,8 @@ class TestDecompressor(unittest.TestCase):
         decompressor = Decompressor()
         with open(self.archive_file, 'rb') as f:
             first_bytes = f.read(36)
-            print(first_bytes)
-            type_compress = decompressor._check_magic_header(first_bytes)
-        self.assertEqual(type_compress, 0)
+            result = decompressor._check_magic_header(first_bytes)
+        self.assertEqual(result, True)
 
     def test_read_tree(self):
         decompressor = Decompressor()
@@ -51,7 +50,6 @@ class TestDecompressor(unittest.TestCase):
         tree = HuffmanTree()
         tree.add_block(b'test_dir')
         tree.build_tree()
-        print(tree.get_codes())
         data_bits = '0011010100111011010100' + '00' + '00000010'
         data_bytes = int(data_bits, 2).to_bytes(4, byteorder='big')
         block = data_bytes + MAGIC_COOKIE_DIR
@@ -72,7 +70,7 @@ class TestDecompressor(unittest.TestCase):
         block = data_bytes + MAGIC_COOKIE_DATA
         result = decompressor._read_data('', block, tree)
         flag, decoded_data, remaining_bits, remaining_bytes = result
-        self.assertEqual(flag, 1)
+        self.assertEqual(flag, 4)
         self.assertEqual(decoded_data, b'test_data')
         self.assertEqual(remaining_bits, '')
         self.assertEqual(len(remaining_bytes), 0)

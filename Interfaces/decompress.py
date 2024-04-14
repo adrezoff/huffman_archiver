@@ -1,7 +1,7 @@
 from abc import ABC, abstractmethod
 
 
-class DecompressorABC(ABC):
+class IDecompressor(ABC):
     @abstractmethod
-    def decompress(self, file, path):
+    def decompress(self, archive_file, out_path):
         pass

@@ -1,7 +1,7 @@
 import unittest
 import tempfile
 import os
-from Huffman_method import Compressor, HuffmanTree, MAGIC_COOKIE_DIR
+from Huffman_method import Compressor, HuffmanTree, END_PATH, MD5
 
 
 class TestCompressor(unittest.TestCase):
