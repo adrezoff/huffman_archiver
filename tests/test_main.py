@@ -1,18 +1,27 @@
-import hashlib
 import os
+import tempfile
 import unittest
+from io import StringIO
 from tempfile import TemporaryDirectory
 from unittest.mock import patch
 
-from main import format_size, set_password, calculate_percentage
+from Huffman_method import MD5
+from main import format_size, calculate_percentage, main, set_password
 
 
-class TestCompressor(unittest.TestCase):
+class TestMain(unittest.TestCase):
     def setUp(self):
         self.test_dir = TemporaryDirectory()
+
         self.test_file = os.path.join(self.test_dir.name, 'test_file.txt')
         with open(self.test_file, 'w') as f:
             f.write('Test file content')
+
+        self.temp_dir = tempfile.TemporaryDirectory()
+        self.input_path = os.path.join(self.temp_dir.name, 'input.txt')
+        self.output_path = os.path.join(self.temp_dir.name, 'input.txt.huff')
+        with open(self.input_path, 'w') as f:
+            f.write('test data for compression')
 
     def tearDown(self):
         self.test_dir.cleanup()
@@ -50,27 +59,85 @@ class TestCompressor(unittest.TestCase):
         expected_formatted_size = '1.00 GiB'
         self.assertEqual(format_size(size_bytes), expected_formatted_size)
 
-    @patch('main.getpass.getpass', return_value='password123')
-    @patch('builtins.input', side_effect=['', ''])
-    def test_password_setting(self, mock_input, mock_getpass):
-        # Создаем временную директорию
-        with TemporaryDirectory() as temp_dir:
-            # Создаем временный файл
-            test_file = os.path.join(temp_dir, 'test_file.txt')
-            with open(test_file, 'w') as f:
-                f.write('Test file content')
+    @patch('sys.stdout', new_callable=StringIO)
+    def test_compress_binary(self, mock_stdout):
+        args = ['-c', '-b', self.input_path, self.output_path]
+        with patch('sys.argv', ['program_name'] + args):
+            main()
+        self.assertTrue(os.path.exists(self.output_path))
+        self.assertTrue(os.path.getsize(self.output_path) > 0)
 
-            # Вызываем функцию установки пароля
-            passwords = set_password(temp_dir)
+    @patch('sys.stdout', new_callable=StringIO)
+    def test_compress_text(self, mock_stdout):
+        args = ['-c', '-t', self.input_path, self.temp_dir.name]
+        with patch('sys.argv', ['program_name'] + args):
+            main()
+        self.assertTrue(os.path.exists(self.output_path))
+        self.assertTrue(os.path.getsize(self.output_path) > 0)
 
-            # Проверяем, что пароль был установлен для созданного файла
-            self.assertIn(test_file, passwords.keys())
+    @patch('sys.stdout', new_callable=StringIO)
+    def test_compress_bin(self, mock_stdout):
+        args = ['-c', '-b', self.input_path, self.temp_dir.name]
+        with patch('sys.argv', ['program_name'] + args):
+            main()
+        self.assertTrue(os.path.exists(self.output_path))
+        self.assertTrue(os.path.getsize(self.output_path) > 0)
 
-            # Проверяем, что значение пароля непустое
-            self.assertTrue(passwords[test_file])
+    @patch('sys.stdout', new_callable=StringIO)
+    def test_decompress_text(self, mock_stdout):
+        args = ['-c', '-t', self.input_path, self.temp_dir.name]
+        with patch('sys.argv', ['program_name'] + args):
+            main()
 
-            # Проверяем, что пароль правильно установлен
-            self.assertEqual(passwords[test_file], '5f4dcc3b5aa765d61d8327deb882cf99')  # MD5 hash of 'password123'
+        decompressor_args = ['-d',
+                             self.output_path,
+                             os.path.join(self.temp_dir.name, 'decompressed')]
+        with patch('sys.argv', ['program_name'] + decompressor_args):
+            main()
+
+        result = os.path.exists(os.path.join(self.temp_dir.name,
+                                             'decompressed/input.txt'))
+        self.assertTrue(result)
+        with open(os.path.join(self.temp_dir.name,
+                               'decompressed/input.txt'), 'r') as f:
+            decompressed_data = f.read()
+        self.assertEqual(decompressed_data, 'test data for compression')
+
+    @patch('sys.stdout', new_callable=StringIO)
+    def test_decompress_bin(self, mock_stdout):
+        args = ['-c', '-b', self.input_path, self.temp_dir.name]
+        with patch('sys.argv', ['program_name'] + args):
+            main()
+
+        decompressor_args = ['-d',
+                             self.output_path,
+                             os.path.join(self.temp_dir.name, 'decompressed')]
+        with patch('sys.argv', ['program_name'] + decompressor_args):
+            main()
+
+        result = os.path.exists(os.path.join(self.temp_dir.name,
+                                             'decompressed/input.txt'))
+        self.assertTrue(result)
+        with open(os.path.join(self.temp_dir.name,
+                               'decompressed/input.txt'), 'r') as f:
+            decompressed_data = f.read()
+        self.assertEqual(decompressed_data, 'test data for compression')
+
+    @patch('builtins.input')
+    @patch('os.path.isdir', return_value=False)
+    @patch('os.path.exists', side_effect=[True, True])
+    @patch('getpass.getpass', side_effect=['password', 'password', ''])
+    def test_set_password_success(self, mock_getpass,
+                                  mock_exists,
+                                  mock_isdir,
+                                  mock_input):
+        mock_input.side_effect = [self.input_path, '']
+
+        hasher = MD5()
+        hasher.hash(b'password')
+        expected = {self.input_path: hasher.get_hash()}
+        result = set_password(self.temp_dir.name)
+        self.assertEqual(result, expected)
 
 
 if __name__ == '__main__':

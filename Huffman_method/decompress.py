@@ -80,7 +80,7 @@ class Decompressor(IDecompressor):
             raise ValueError(f'Не удалось распознать архив!')
         return True
 
-    def check_header(self, file: BinaryIO) -> None:
+    def check_header(self, file: BinaryIO) -> bool:
         """
         Проверяет заголовок архива.
 
@@ -109,6 +109,7 @@ class Decompressor(IDecompressor):
             raise ValueError(f'Неподдерживаемая кодировка архива!')
 
         self.progress_bar.update(len(header))
+        return True
 
     def check_file_type(self, file):
         type_file = file.read(1)
@@ -137,11 +138,13 @@ class Decompressor(IDecompressor):
         except ValueError as e:
             raise e
 
-    def decompress_empty_file(self, file: BinaryIO) -> None:
+    def decompress_common_actions(self, file: BinaryIO) -> \
+            [Tuple[str, bytes, MD5, bytes, Union[bytes, None]]]:
         """
-        Распаковывает пустой файл из архива.
+        Выполняет общие действия при распаковке файла из архива.
 
         :param file: Файловый объект архива.
+        :return: Кортеж с путем и буфером данных.
         :raises ValueError: Если файл не корректен или поврежден.
         """
         level_protect = file.read(1)
@@ -157,9 +160,27 @@ class Decompressor(IDecompressor):
                 result, hash_pass = self.authentication(out_dir, auth_bytes)
                 if not result:
                     self.skip_file(file, buffer)
-                    return
+                    return None, None, None, None, None
+                return out_dir, buffer, hasher, level_protect, hash_pass
             else:
                 out_dir, buffer = self.get_path(file, hasher)
+                return out_dir, buffer, hasher, level_protect, None
+        except ValueError as e:
+            raise e
+
+    def decompress_empty_file(self, file: BinaryIO) -> None:
+        """
+        Распаковывает пустой файл из архива.
+
+        :param file: Файловый объект архива.
+        :raises ValueError: Если файл не корректен или поврежден.
+        """
+        (out_dir, buffer, hasher,
+         level_protect, hash_pass) = self.decompress_common_actions(file)
+
+        try:
+            if out_dir is None:
+                return
 
             end_data = buffer[:4]
             if len(end_data) < 4:
@@ -181,23 +202,16 @@ class Decompressor(IDecompressor):
         :param file: Файловый объект архива.
         :raises ValueError: Если файл не корректен или поврежден.
         """
-        level_protect = file.read(1)
-        self.progress_bar.update(1)
-
-        hasher = MD5()
+        (out_dir, buffer, hasher,
+         level_protect, hash_pass) = self.decompress_common_actions(file)
 
         try:
+            if out_dir is None:
+                return
+
             if level_protect == b'\x01':
-                auth_bytes = file.read(16)
-                self.progress_bar.update(16)
-                out_dir, buffer = self.get_path(file, hasher)
-                result, hash_pass = self.authentication(out_dir, auth_bytes)
-                if not result:
-                    self.skip_file(file, buffer)
-                    return
                 tree, buffer = self.get_tree(file, hasher, hash_pass, buffer)
             else:
-                out_dir, buffer = self.get_path(file, hasher)
                 tree, buffer = self.get_tree(file, hasher, buffer=buffer)
 
             buffer = self.read_data(file, tree, hasher, out_dir, buffer)
@@ -220,6 +234,7 @@ class Decompressor(IDecompressor):
             raise ValueError('Ошибка флагов пустой директории')
 
         out_dir, buffer = self.get_path(file, hasher)
+        os.makedirs(out_dir, exist_ok=False)
 
         end_data = buffer[:4]
         if end_data != END_DATA:
@@ -259,11 +274,13 @@ class Decompressor(IDecompressor):
             self.progress_bar.update(len(buffer))
 
             relative_path = bytes_path.decode('utf-8')
+
             if relative_path == '.':
                 relative_path = ''
             full_arch_name = os.path.basename(self.archive_path)
             arch_name = os.path.splitext(full_arch_name)[0]
             out_dir = os.path.join(self.out_path, arch_name, relative_path)
+            out_dir = os.path.normpath(out_dir)
 
             return out_dir, buffer[end_path + len(END_PATH):]
 
@@ -332,7 +349,7 @@ class Decompressor(IDecompressor):
                   out_file: str,
                   buffer: bytes) -> bytes:
         """
-        Читает данные из файла и декодирует их с использованием дерева Хаффмана.
+        Читает данные из файла и декодирует с использованием дерева Хаффмана.
 
         :param file: Файловый объект, из которого читаются данные.
         :param tree: Дерево Хаффмана для декодирования.
@@ -342,8 +359,9 @@ class Decompressor(IDecompressor):
         :param buffer: Буфер данных для обработки.
         :return: Оставшийся буфер данных.
         """
-        dir_path = os.path.dirname(out_file)
+        dir_path = os.path.dirname(os.path.normpath(out_file))
         os.makedirs(dir_path, exist_ok=True)
+
         bits = ''
         with open(out_file, self.open_mode) as outfile:
             end_data = buffer.find(END_DATA)
@@ -505,28 +523,6 @@ class Decompressor(IDecompressor):
 
         print(f'Попытки закончились. Файл автоматически пропускается.')
         return False, None
-
-    @staticmethod
-    def get_pass_hash(name: str) -> Optional[bytes]:
-        """
-        Получает хеш пароля для указанного файла.
-
-        :param name: Имя файла.
-        :return: Хеш пароля в виде байтов или None, если файл пропущен.
-        """
-        print(f'\nВведите пароль от файла {name} '
-              '(или пустую строку чтобы пропустить файл):')
-
-        password = getpass.getpass()
-        if not password:
-            print(f'\nВы пропустили файл {name}')
-            return None
-
-        hasher = MD5()
-        hasher.hash(password.encode())
-        pass_hash = hasher.get_hash()
-
-        return pass_hash
 
     @staticmethod
     def _bytes_to_bits(data: bytes) -> str:

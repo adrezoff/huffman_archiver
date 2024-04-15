@@ -142,7 +142,8 @@ def mix_columns(state: List[List[int]]) -> List[List[int]]:
     return state
 
 
-def add_round_key(state: List[List[int]], round_key: List[List[int]]) -> List[List[int]]:
+def add_round_key(state: List[List[int]],
+                  round_key: List[List[int]]) -> List[List[int]]:
     """
     Выполняет преобразование AddRoundKey в AES.
 

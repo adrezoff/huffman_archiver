@@ -23,8 +23,7 @@ class TestProgressBar(unittest.TestCase):
         expected_output = '\r[#####     ] 50.00%'
         self.assertEqual(mock_stdout.getvalue(), expected_output)
 
-
-def test_reset(self):
+    def test_reset(self):
         self.progress_bar.reset(200)
         self.assertEqual(self.progress_bar.total, 200)
         self.assertEqual(self.progress_bar.progress, 0)

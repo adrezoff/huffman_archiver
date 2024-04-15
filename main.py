@@ -78,6 +78,7 @@ def set_password(directory: str) -> Dict[str, bytes]:
                 print('Ошибка. Пароли не совпадают')
         else:
             print('Ошибка. Файл не принадлежит указанной директории.')
+    return passwords
 
 
 def format_size(size_bytes: int) -> str:
@@ -105,35 +106,35 @@ def main() -> None:
     parser.add_argument(
         '-c', '--compress',
         action='store_true',
-        help='Compress operation'
+        help='Операция сжатия'
     )
     parser.add_argument(
         '-d', '--decompress',
         action='store_true',
-        help='Decompress operation'
+        help='Операция распаковки'
     )
     parser.add_argument(
         '-b', '--bin',
         action='store_true',
-        help='Binary method'
+        help='Сжатие в бинарном виде'
     )
     parser.add_argument(
         '-t', '--text',
         action='store_true',
-        help='Text method'
+        help='Сжатие текстовых данных'
     )
     parser.add_argument(
         '-p', '--protect',
         action='store_true',
-        help='file protect'
+        help='Установка защиты на файлы'
     )
     parser.add_argument(
         'input_path',
-        help='Input file/directory path'
+        help='Путь к файлу/директории'
     )
     parser.add_argument(
         'output_path',
-        help='Output file/directory path'
+        help='Путь для сохранения архива/разархивированных данных'
     )
 
     args = parser.parse_args()
@@ -149,7 +150,9 @@ def main() -> None:
         time1 = time.time()
 
         try:
-            size_path, size_arch = compressor.compress(_input, output, protected_files)
+            size_path, size_arch = compressor.compress(_input,
+                                                       output,
+                                                       protected_files)
         except ValueError as e:
             print(f'\n{e.args[0]}')
             return

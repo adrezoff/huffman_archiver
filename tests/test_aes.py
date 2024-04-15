@@ -16,7 +16,9 @@ class TestAES(unittest.TestCase):
         self.assertEqual(plaintext, decrypted)
 
     def test_long_encrypt_decrypt(self):
-        plaintext = b'This is a longer plaintext message to test AES encryption and decryption with a longer text.'
+        plaintext = (b'This is a longer plaintext message '
+                     b'to test AES encryption and'
+                     b' decryption with a longer text.')
         key = b'AnotherSecretKey'
 
         encrypted = aes_encrypt(plaintext, key)

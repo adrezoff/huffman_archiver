@@ -4,7 +4,8 @@ import tempfile
 from io import BytesIO
 from unittest.mock import patch
 
-from Huffman_method import Compressor, HuffmanTree, END_PATH, END_DATA, MD5, MAGIC_BYTES
+from Huffman_method import (Compressor, HuffmanTree,
+                            END_PATH, END_DATA, MD5, MAGIC_BYTES)
 
 
 class TestCompressorMethods(unittest.TestCase):
@@ -42,13 +43,15 @@ class TestCompressorMethods(unittest.TestCase):
             with open(file2_path, "w") as file:
                 file.write("more test data")
 
-            total_size, info_dict = self.compressor.get_directory_info(tmp_dir)
+            size, info_dict = self.compressor.get_directory_info(tmp_dir)
 
-            self.assertEqual(total_size, os.path.getsize(file1_path) + os.path.getsize(file2_path))
-            self.assertEqual(info_dict, {file1_path: "file", file2_path: "file"})
+            self.assertEqual(size, os.path.getsize(file1_path) +
+                             os.path.getsize(file2_path))
+            self.assertEqual(info_dict,
+                             {file1_path: "file", file2_path: "file"})
 
     def test_compress_empty_dir(self):
-        with tempfile.TemporaryDirectory() as tmp_dir:
+        with (tempfile.TemporaryDirectory() as tmp_dir):
             outfile = BytesIO()
             file_path = os.path.join(tmp_dir, "empty_dir")
 
@@ -56,7 +59,8 @@ class TestCompressorMethods(unittest.TestCase):
 
             hasher = MD5()
             hasher.hash('.'.encode('utf-8'))
-            expected_result = b'\x00\x00\x00.' + END_PATH + END_DATA + hasher.get_hash()
+            expected_result = b'\x00\x00\x00.' + END_PATH + \
+                              END_DATA + hasher.get_hash()
 
             outfile.seek(0)
             data_in_file = outfile.read()
@@ -99,7 +103,8 @@ class TestCompressorMethods(unittest.TestCase):
             hasher = MD5()
             hasher.hash(test)
 
-            self.assertEqual(data_in_file, b'\x70\x02' + END_DATA + hasher.get_hash())
+            self.assertEqual(data_in_file, b'\x70\x02' +
+                             END_DATA + hasher.get_hash())
 
     def test_make_header(self):
         outfile = BytesIO()
@@ -152,9 +157,8 @@ class TestCompressorMethods(unittest.TestCase):
             with open(file2_path, "w") as file:
                 file.write("Test data 2")
 
-            outfile = BytesIO()
-
-            original_size, compressed_size = self.compressor.compress(tmp_dir, tmp_dir)
+            original_size, compressed_size = self.compressor.compress(
+                tmp_dir, tmp_dir)
 
             self.assertGreater(original_size, 0)
             self.assertGreater(compressed_size, 0)
@@ -179,6 +183,7 @@ class TestCompressorMethods(unittest.TestCase):
         with open(output_file, 'rb') as f:
             magic_header = f.read(len(MAGIC_BYTES))
             self.assertEqual(magic_header, MAGIC_BYTES)
+
 
 if __name__ == '__main__':
     unittest.main()
