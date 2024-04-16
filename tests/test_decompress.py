@@ -13,17 +13,21 @@ class TestDecompressor(unittest.TestCase):
         self.test_file = os.path.join(self.test_dir.name, 'test.bin')
         self.archive_file = os.path.join(self.test_dir.name, 'test.bin.huff')
 
-        self.test_file2 = os.path.join(self.test_dir.name, 'test1.bin')
-        self.archive_file2 = os.path.join(self.test_dir.name,
-                                          'test1.bin.huff')
+        self.test_file2 = os.path.join(self.test_dir.name, 'test2.bin')
+        self.archive_file2 = os.path.join(self.test_dir.name, 'test2.bin.huff')
+
+        self.test_file3 = os.path.join(self.test_dir.name, 'test3.bin')
+        self.archive_file3 = os.path.join(self.test_dir.name, 'test3.bin.huff')
 
         self.empty_dir = TemporaryDirectory()
 
         with open(self.test_file, 'w') as f:
-            f.write('iefrhofkwdw[eofhwe[' * 100)
+            f.write('iefrhofkwdw[eofhw1e[' * 100)
 
         with open(self.test_file2, 'w') as f:
-            f.write('fwjef[jdkfjwiojasj1927' * 100)
+            f.write('fwjef[jdkfjwiojasj19127' * 100)
+
+        open(self.test_file3, 'ab').close()
 
         compressor = Compressor()
         compressor.compress(self.test_file, self.test_dir.name)
@@ -52,6 +56,19 @@ class TestDecompressor(unittest.TestCase):
             file_type_byte = f.read(1)
             result = decompressor.check_file_type(BytesIO(file_type_byte))
         self.assertEqual(result, b'\x01')
+
+    def test_decompress_empty_file(self):
+        compressor = Compressor()
+        compressor.compress(self.test_file3, self.test_dir.name)
+
+        decompressor = Decompressor()
+        out_dir = os.path.join(self.test_dir.name, 'out')
+        decompressor.decompress(self.archive_file3, out_dir)
+
+        out = os.path.join(out_dir, 'test3.bin')
+
+        self.assertTrue(os.path.isfile(out))
+        self.assertTrue(os.path.getsize(out) == 0)
 
     def test_decompress_empty_dir(self):
         compressor = Compressor()
@@ -83,7 +100,7 @@ class TestDecompressor(unittest.TestCase):
         out_dir = os.path.join(self.test_dir.name, 'out')
 
         decompressor.decompress(self.archive_file2, out_dir)
-        out_file = os.path.join(out_dir, 'test1.bin')
+        out_file = os.path.join(out_dir, 'test2.bin')
 
         self.assertTrue(os.path.isfile(out_file))
 

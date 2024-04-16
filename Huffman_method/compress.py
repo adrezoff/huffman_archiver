@@ -194,6 +194,7 @@ class Compressor(ICompressor):
             outfile.write(b'\x00')
 
         outfile.write(bytes_relative_path)
+
         hasher.hash(bytes_relative_path)
         outfile.write(END_PATH)
 

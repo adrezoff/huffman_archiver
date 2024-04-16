@@ -189,7 +189,12 @@ class Decompressor(IDecompressor):
                 buffer += chunk
 
             if end_data == END_DATA:
+                buffer = buffer[4:]
                 self.check_hash(file, hasher, out_dir, buffer)
+
+                dir_path = os.path.dirname(os.path.normpath(out_dir))
+                os.makedirs(dir_path, exist_ok=True)
+                open(out_dir, 'wb').close()
             else:
                 raise ValueError(f'Ошибка идентификации конца файла')
         except ValueError as e:
@@ -454,7 +459,7 @@ class Decompressor(IDecompressor):
         _hash_file = hasher.get_hash()
 
         if _hash_file != buffer[:16]:
-            raise ValueError(f'File [{out_path}] is damaged!')
+            raise ValueError(f'Файл [{out_path}] поврежден!')
 
         buffer = buffer[16:]
 
