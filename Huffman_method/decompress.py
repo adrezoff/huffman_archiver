@@ -265,29 +265,19 @@ class Decompressor(IDecompressor):
         :return: Кортеж, содержащий извлеченный путь и оставшийся
                 буфер данных.
         """
-        end_path = buffer.find(END_PATH)
+        bytes_path, buffer = self.finder_ends(file, buffer, END_PATH)
 
-        if end_path < 0:
-            try:
-                buffer += file.read(self.block_size)
-                return self.get_path(file, hasher, buffer)
-            except ValueError as e:
-                raise e
-        else:
-            bytes_path = buffer[:end_path]
-            hasher.hash(bytes_path)
-            self.progress_bar.update(len(buffer))
+        relative_path = bytes_path.decode('utf-8')
+        hasher.hash(bytes_path)
 
-            relative_path = bytes_path.decode('utf-8')
+        if relative_path == '.':
+            relative_path = ''
+        full_arch_name = os.path.basename(self.archive_path)
+        arch_name = os.path.splitext(full_arch_name)[0]
+        out_dir = os.path.join(self.out_path, arch_name, relative_path)
+        out_dir = os.path.normpath(out_dir)
 
-            if relative_path == '.':
-                relative_path = ''
-            full_arch_name = os.path.basename(self.archive_path)
-            arch_name = os.path.splitext(full_arch_name)[0]
-            out_dir = os.path.join(self.out_path, arch_name, relative_path)
-            out_dir = os.path.normpath(out_dir)
-
-            return out_dir, buffer[end_path + len(END_PATH):]
+        return out_dir, buffer
 
     def get_tree(self, file: BinaryIO,
                  hasher: MD5,
@@ -296,34 +286,14 @@ class Decompressor(IDecompressor):
         """
         Получает дерево Хаффмана из файла и возвращает его.
 
+        :param out_dir:
         :param file: Файловый объект для чтения данных.
         :param hasher: Объект для вычисления хеша.
         :param hash_pass: Байтовая строка с хешем для защищенного дерева.
         :param buffer: Буфер для обработки данных.
         :return: Кортеж, содержащий дерево Хаффмана и оставшийся буфер данных.
         """
-        end_tree = buffer.find(END_TREE)
-
-        if end_tree >= 0:
-            serialized_tree, buffer = buffer[:end_tree], buffer[end_tree:]
-            if len(buffer) < 4:
-                self.progress_bar.update(4 - len(buffer))
-                buffer += file.read(4 - len(buffer))
-            buffer = buffer[len(END_TREE):]
-        else:
-            serialized_tree = buffer
-            for block in iter(lambda: file.read(self.block_size), b''):
-                if not block:
-                    raise ValueError(f'File is damaged.')
-
-                self.progress_bar.update(len(block))
-
-                end_tree_block = block.find(END_TREE)
-                if end_tree_block >= 0:
-                    serialized_tree += block[:end_tree_block]
-                    buffer = block[end_tree_block + 4:]
-                    break
-                serialized_tree += block
+        serialized_tree, buffer = self.finder_ends(file, buffer, END_TREE )
 
         if hash_pass:
             tree = self.get_protected_tree(serialized_tree, hash_pass, hasher)
@@ -335,7 +305,17 @@ class Decompressor(IDecompressor):
         return tree, buffer
 
     @staticmethod
-    def get_protected_tree(serialized_tree, hash_pass, hasher):
+    def get_protected_tree(serialized_tree: bytes,
+                           hash_pass: bytes,
+                           hasher: MD5) -> HuffmanTree:
+        """
+        Декодирует дерево по ключу алгоритмом AES
+
+        :param serialized_tree: Закодированное дерево.
+        :param hash_pass: Симметричный ключ.
+        :param hasher: Объект для вычисления хеша.
+        :return: Объект дерева.
+        """
         count = int.from_bytes(serialized_tree[-1:], byteorder='big')
         decoded_tree = b''
         while len(serialized_tree) >= 16:
@@ -379,9 +359,11 @@ class Decompressor(IDecompressor):
                                                   hasher)
                 for block in iter(lambda: file.read(self.block_size), b''):
                     if not block:
-                        raise ValueError(f'File is damaged..')
+                        raise ValueError(f'Файл поврежден [Не удалось '
+                                         f'найти конец файла]')
+
                     self.progress_bar.update(len(block))
-                    buffer = buffer[-3:] + block
+                    buffer = buffer[-5:] + block
                     end_data = buffer.find(END_DATA)
                     buffer, bits = self.decoded_block(outfile,
                                                       bits,
@@ -424,11 +406,10 @@ class Decompressor(IDecompressor):
             count = last_byte
             buffer = buffer[end_data + 4:]
         else:
-            encoded_data = buffer[:-3]
+            encoded_data = buffer[:-5]
             count = -1
-            buffer = buffer[-3:]
+            buffer = buffer[-5:]
         bits += self._bytes_to_bits(encoded_data)
-
         decoded_data, bits = tree.decode(bits, count)
         outfile.write(decoded_data)
 
@@ -539,3 +520,48 @@ class Decompressor(IDecompressor):
         """
         bits = ''.join(format(byte, '08b') for byte in data)
         return bits
+
+    def finder_ends(self, file: BinaryIO,
+                    buffer: bytes,
+                    end_str: bytes) -> Tuple[bytes, bytes]:
+        """
+        Ведет поиск конца блока данных.
+
+        :param file: Файловый объект для чтения данных.
+        :param buffer: Буфер для обработки данных.
+        :param end_str: Искомые байты.
+        :return: Кортеж, содержащий данные и оставшийся буфер.
+        """
+        end_entry = buffer.find(end_str)
+
+        if end_entry >= 0:
+            _bytes, buffer = buffer[:end_entry], buffer[end_entry:]
+            if len(buffer) < 4:
+                self.progress_bar.update(4 - len(buffer))
+                buffer += file.read(4 - len(buffer))
+            buffer = buffer[len(end_str):]
+        else:
+            _bytes = buffer
+            for block in iter(lambda: file.read(self.block_size), b''):
+                if not block:
+                    raise ValueError(f'Файл поврежден [Не удалось '
+                                     f'найти конец структуры]')
+
+                block = _bytes[-3:] + block
+                end_entry = block.find(end_str)
+
+                if end_entry >= 0:
+                    _bytes = _bytes[:-3] + block[:end_entry]
+                    block = block[end_entry:]
+
+                    if len(block) < 4:
+                        self.progress_bar.update(4 - len(block))
+                        block += file.read(4 - len(block))
+                        self.progress_bar.update_with_point(file.tell())
+                    buffer = block[len(end_str):]
+                    break
+
+                _bytes = _bytes[:-3] + block
+                self.progress_bar.update_with_point(file.tell())
+
+        return _bytes, buffer
