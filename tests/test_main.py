@@ -5,7 +5,7 @@ from io import StringIO
 from tempfile import TemporaryDirectory
 from unittest.mock import patch
 
-from Huffman_method import MD5
+from huffman_method import MD5
 from main import format_size, calculate_percentage, main, set_password
 
 

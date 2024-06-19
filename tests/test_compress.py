@@ -4,7 +4,7 @@ import tempfile
 from io import BytesIO
 from unittest.mock import patch
 
-from Huffman_method import (Compressor, HuffmanTree,
+from huffman_method import (Compressor, HuffmanTree,
                             END_PATH, END_DATA, MD5, MAGIC_BYTES)
 
 

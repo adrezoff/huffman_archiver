@@ -4,8 +4,8 @@ import os
 import getpass
 from typing import Dict
 
-from Huffman_method.hasher import MD5
-from Huffman_method import Decompressor, Compressor
+from huffman_method.hasher import MD5
+from huffman_method import Decompressor, Compressor
 
 
 def calculate_percentage(size_path_in: int, size_archive: int) -> float:

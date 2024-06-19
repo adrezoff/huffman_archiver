@@ -4,7 +4,7 @@ from io import BytesIO
 from tempfile import TemporaryDirectory
 from unittest.mock import patch
 
-from Huffman_method import *
+from huffman_method import *
 
 
 class TestDecompressor(unittest.TestCase):

@@ -1,7 +1,7 @@
 import unittest
 from collections import Counter
 
-from Huffman_method import HuffmanNode, HuffmanTree
+from huffman_method import HuffmanNode, HuffmanTree
 
 
 class TestHuffmanNode(unittest.TestCase):

@@ -1,11 +1,11 @@
 import os
 from typing import Dict, Optional, Tuple, BinaryIO
-from Huffman_method.coding import aes_encrypt
-from Huffman_method.huffman import HuffmanTree
-from Interfaces.compress import ICompressor
-from Huffman_method.const_byte import *
-from Huffman_method.progress_bar import ProgressBar
-from Huffman_method.hasher import MD5
+from huffman_method.coding import aes_encrypt
+from huffman_method.huffman import HuffmanTree
+from interfaces.compress import ICompressor
+from huffman_method.const_byte import *
+from huffman_method.progress_bar import ProgressBar
+from huffman_method.hasher import MD5
 
 
 class Compressor(ICompressor):

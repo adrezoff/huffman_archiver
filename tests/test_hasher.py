@@ -1,5 +1,5 @@
 import unittest
-from Huffman_method.hasher import MD5
+from huffman_method.hasher import MD5
 
 
 class TestMD5(unittest.TestCase):

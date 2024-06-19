@@ -2,12 +2,12 @@ import os
 import getpass
 from typing import Tuple, Optional, BinaryIO, Union, TextIO
 
-from Huffman_method.hasher import MD5
-from Huffman_method.coding import aes_decrypt
-from Huffman_method.huffman import HuffmanTree
-from Interfaces.decompress import IDecompressor
-from Huffman_method.const_byte import *
-from Huffman_method.progress_bar import ProgressBar
+from huffman_method.hasher import MD5
+from huffman_method.coding import aes_decrypt
+from huffman_method.huffman import HuffmanTree
+from interfaces.decompress import IDecompressor
+from huffman_method.const_byte import *
+from huffman_method.progress_bar import ProgressBar
 
 
 class Decompressor(IDecompressor):

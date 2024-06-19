@@ -1,5 +1,5 @@
 import unittest
-from Huffman_method.coding import aes_encrypt, aes_decrypt
+from huffman_method.coding import aes_encrypt, aes_decrypt
 
 
 class TestAES(unittest.TestCase):
