@@ -4,7 +4,7 @@ import os
 import getpass
 from typing import Dict
 
-from huffman_method.hasher import MD5
+from encryption.hasher import MD5
 from huffman_method import Decompressor, Compressor
 
 

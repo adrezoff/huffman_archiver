@@ -1,7 +1,7 @@
 import unittest
 from unittest.mock import patch
 
-from huffman_method.progress_bar import ProgressBar
+from progress_bar import ProgressBar
 from io import StringIO
 
 
